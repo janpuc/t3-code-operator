@@ -1,0 +1,10 @@
+[settings]
+experimental = true
+
+[tools]
+go = "latest"
+"github:koment-dev/koment" = "v3.2.0"
+just = "latest"
+kubectl = "latest"
+helm = "latest"
+kubeconform = "latest"

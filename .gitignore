@@ -1,0 +1,7 @@
+bin/
+dist/
+testbin/
+*.test
+cover.out
+node_modules/
+.DS_Store

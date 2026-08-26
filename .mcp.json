@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "koment": {
+      "args": [
+        "mcp",
+        "--write"
+      ],
+      "command": "koment"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M0YQD2VMVT1QAVXYTQS6YXWW
+  created: "2026-08-26T09:46:14Z"
+spec:
+  target:
+    file: PLAN.md
+  type: invariant
+  title: Content changes must never roll the pod; this is the whole point
+  body: |-
+    The deployment this project replaces runs with strategy Recreate at one
+    replica, so every ConfigMap edit tears down the pod and destroys whatever
+    agent sessions were mid-flight. Adding a skill costing someone an hour of
+    agent work is the specific failure that motivated the rewrite.
+
+    So the rollout table is not a performance nicety, it is the acceptance
+    criterion for the entire operator. A design that reconciles CRDs beautifully
+    and still restarts the pod when a Skill changes has delivered nothing over
+    the ConfigMap it replaced.
+
+    It is written as a table because it has to be testable: mutate each kind,
+    assert whether the pod template hash moved. Prose would not survive contact
+    with a reconciler that quietly includes rendered content in the pod spec.
+  anchor:
+    scope: excerpt
+    excerpt: If a controller bumps a pod template hash for anything in the first two rows,
+    before: |
+      | `Runtime.spec.image` | Yes, via drain policy |
+      | Pod shape: volumes, resources, env set | Yes, via drain policy |
+    after: |-
+      the project has failed at its one job.
+
+      ## 7. Delivery and reload
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+status:
+  lastSeenLine: 301
+  resolution: ok
+  resolvedAt: "2026-08-26T09:46:14Z"

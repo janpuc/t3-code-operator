@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/policy.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Policy
+spec:
+  comments:
+    mode: strict
+    intrinsic:
+      - toolchain-directive
+      - generated-marker
+      - upstream-link
+      - deprecated
+      - public-api
+    generatedPaths:
+      - '**/*.gen.go'
+      - '**/*.generated.go'
+      - '**/*.pb.go'
+      - '**/*_pb2.py'
+      - '**/*_pb2.pyi'
+      - '**/*.min.js'
+      - '**/*.min.css'
+      - '**/*.bundle.js'
+    vendoredPaths:
+      - '**/vendor/**'
+      - '**/node_modules/**'
+      - '**/third_party/**'
+      - '**/.venv/**'
+      - '**/venv/**'
+      - '**/__pycache__/**'
+      - '**/.tox/**'
+      - '**/target/**'
+      - '**/build/**'
+      - '**/dist/**'
+      - '**/out/**'
+      - '**/.gradle/**'
+      - '**/.next/**'
+      - '**/.cache/**'
+      - .koment/**
+      - '**/.koment/**'
+  agents:
+    adapters:
+      - claude
+      - codex
+      - opencode
+    principles:
+      - back-compat-evidence
