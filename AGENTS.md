@@ -118,6 +118,29 @@ A harness home directory holds authentication and session state next to its
 config. The renderer writes config files by explicit allow-list. It does not
 sync directories, and it does not delete what it did not write.
 
+Concretely, every target file has one of three write modes, chosen by the
+adapter and never by the user:
+
+- `Replace` — overwrite unconditionally.
+- `SeedIfAbsent` — write only when missing or unparseable.
+- `Merge` — deep-merge, preserving unknown keys.
+
+`.claude.json` is `Merge` because it holds OAuth state beside MCP config. A
+renderer that only knows how to write files will destroy authentication on the
+first reconcile. Users should never have to know which files are dangerous.
+
+## Model t3's model, do not invent one over it
+
+A `Harness` is one t3 provider instance. t3 keys `providerInstances` by an
+arbitrary `instanceId` and each instance carries a `driver`, so two instances
+may share a driver and differ only in config and home path.
+
+`driver` is therefore a **string, never an enum**. A new t3 driver must never
+force a schema change. Implement adapters for the drivers actually in use; the
+schema admits the rest without them.
+
+A custom endpoint is config, not a driver.
+
 ## Comments
 
 The managed block forbids ordinary comments and this repository has no

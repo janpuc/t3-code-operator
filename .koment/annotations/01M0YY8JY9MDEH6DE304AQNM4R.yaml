@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M0YY8JY9MDEH6DE304AQNM4R
+  created: "2026-08-26T11:46:06Z"
+spec:
+  target:
+    file: PLAN.md
+  type: why
+  title: Named Workstation after an inventory, not an intuition
+  body: |-
+    This kind was called Runtime through two drafts and the name kept failing to
+    explain itself. Three alternatives were rejected for concrete reasons.
+
+    Instance is unusable: t3 already owns that word for providerInstances, where
+    an instance is a configured harness. Reusing it for the pod that hosts them
+    would invert the meaning of the most load-bearing term in the system.
+
+    Runtime was rejected as vague. It says the thing runs, which is true of
+    every object in a cluster, and it gave no reader a way to guess what belongs
+    in the spec.
+
+    The name was settled by counting rather than taste. An inventory of the
+    existing t3-code app found twelve capability groups, of which the other
+    three kinds cover five; the remaining seven are all machine concerns: image,
+    storage, network, git identity, CLI tools, probes, resources. A machine with
+    an identity, storage, tools and several harnesses installed on it is a
+    workstation.
+
+    That inventory also reversed an earlier judgement recorded in review, that
+    this kind was thinning out and might collapse into the Helm chart. It is
+    roughly half the application. The lesson worth keeping: the thinness was an
+    artefact of not having counted.
+  anchor:
+    scope: excerpt
+    excerpt: 'kind: Workstation'
+    before: |2-
+
+      ```yaml
+      apiVersion: t3code.janpuc.com/v1alpha1
+    after: |-
+      metadata: {name: primary}
+      spec:
+        image: ghcr.io/janpuc/t3-code@sha256:...
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+  git:
+    commit: ba84ff72b2a76291507417274286f69c9632d8be
+    path: PLAN.md
+    line: 194
+status:
+  lastSeenLine: 194
+  resolution: ok
+  resolvedAt: "2026-08-26T11:46:07Z"
+  resolvedCommit: ba84ff72b2a76291507417274286f69c9632d8be
