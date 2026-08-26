@@ -50,8 +50,14 @@ nothing gets edited.
 ## Ecosystem
 
 - **t3-code-operator** — this repository: operator, CRDs, chart, sidecar, image
-- **[agent-kit](https://github.com/janpuc/agent-kit)** — extension content,
-  consumed as an `Extension`
+
+Skill content is **not** vendored into a repository of its own. `SKILL.md` is a
+settled standard that every major harness reads, and a plain git repository of
+`skills/<name>/SKILL.md` is what the ecosystem consumes, so an `Extension` with
+a `Git` source points at any upstream directly — no repackaging step. See
+PLAN.md section 3.10 for what is and is not standardised, and why the Agent
+Skills OCI Artifacts draft is an optional additive rather than the primary
+path.
 
 ## License
 

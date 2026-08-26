@@ -175,6 +175,41 @@ See section 16.
 provider homes. If the sidecar also writes there, the two contend and the loser
 varies with timing. Phase 0 question 2.
 
+### 3.10 What is and is not standardised
+
+Researched 2026-08-26. This decides `Extension`'s source types, so it is fact,
+not preference.
+
+| Layer | Standard | Maturity |
+|---|---|---|
+| Skill **format** | `SKILL.md` + frontmatter, `agentskills/agentskills` | 24,726 stars, pushed 2026-08-09. ~56,800 `SKILL.md` directories across 1,133 repositories. Every major harness reads it. |
+| **Distribution** | Agent Skills OCI Artifacts spec, `ThomasVitale/agents-skills-oci-artifacts-spec` | 14 stars, pushed 2026-04-02. Draft 0.1.0, proposed to the core spec, **not merged**. |
+| **Registry** | `skills.sh`, `npx skills add <owner/repo>` | Real; 1.2M+ installs; spans Claude Code, Codex, Cursor, Copilot, Windsurf, Gemini, Cline. |
+| **Plugins** | none | No cross-harness standard exists. |
+
+Two conclusions follow, and they are the reason this project exists.
+
+**The format is settled; adopt it and change nothing.** The canonical spec repo
+contains no `distribution/`, `registry/` or `oci/` paths. It covers the format
+and client implementation and stops.
+
+**No harness natively consumes any distribution standard.** The OCI draft
+defines media types (`application/vnd.agent-skills.skill.v1`, config
+`application/vnd.agent-skills.skill.config.v1+json`, collections as an OCI Image
+Index) and reference tooling (Arconia CLI, `skills-oci`, ORAS), but Claude Code,
+Codex and OpenCode read none of it. Adopting it would not make this project more
+standard; it would make it bespoke with a specification attached, and it would
+bet on a draft that has not moved in over four months.
+
+What every mechanism *does* consume is **a plain git repository containing
+`skills/<name>/SKILL.md`**. That is what `skills.sh` installs from, what
+`claude plugin marketplace add` takes, and what `codex plugin marketplace add`
+takes. The de-facto distribution unit is a repository, not an artifact.
+
+**Therefore the sidecar is the standardisation layer.** One declarative source
+in, each harness's native location out. That is the gap in the ecosystem, and
+filling it is what earns this operator its existence.
+
 ## 4. The four kinds
 
 `Extension` · `MCPServer` · `Harness` · `Workstation`
@@ -232,23 +267,41 @@ not a new driver**. Same format, same skill roots, same reload. It is a second
 
 ### 4.3 Extension
 
-Anything a harness loads: skills, plugins, or both. They are one kind because
-`agent-kit` is literally one artifact that is a skill source *and* three plugin
-manifests. Two CRs pointing at the same reference would be a smell.
+Anything a harness loads: skills, plugins, or both. One kind rather than two,
+because a single upstream artifact is routinely both at once — a repository that
+carries `skills/` and a `.claude-plugin/` manifest is one thing, and two CRs
+pointing at the same reference would be a smell.
+
+`Git` is the primary source type, because section 3.10 shows a git repository is
+what the ecosystem actually consumes:
 
 ```yaml
 kind: Extension
-metadata: {name: agent-kit}
+metadata: {name: mattpocock}
 spec:
   source:
-    type: GitHubRelease        # discriminated union, never implicit oneOf
-    githubRelease:
-      repo: janpuc/agent-kit
-      version: v0.1.0
-      assetPattern: "agent-kit_v*.tar.gz"
-      checksumPattern: "agent-kit_*_checksums.txt"
+    type: Git                  # discriminated union, never implicit oneOf
+    git:
+      repo: mattpocock/skills
+      ref: 9f2c1ab...          # a SHA, not a tag: tags move, and an Extension
+      path: skills             # is instructions for a credentialed agent
+    include: [tdd, research]   # empty means everything found
   harnessRefs: [{name: claude}, {name: claudel}, {name: codex}]
 ```
+
+Because the format is universal, this consumes **any** upstream directly with no
+repackaging. That is the integration story: adopting a new skill set is one CR,
+not a vendoring exercise.
+
+Other source types, in order of expected use:
+
+- `OCI` — better inside a cluster than git: digest-pinned, no GitHub API auth in
+  the pod, cosign-verifiable, native to Flux and Renovate. Tag published
+  artifacts with the draft spec's media types from 3.10. It costs nothing and
+  buys compatibility if that draft ever lands, but do not depend on its tooling.
+- `Marketplace` — delegate to the harness's own installer for things that are
+  genuinely harness-specific, such as `koment@koment-dev` on Codex.
+- `Inline` — a single skill authored in the CR, for one-offs.
 
 The install *verb* differs per driver — write files, or delegate to
 `claude plugin install` — but that is adapter knowledge and stays behind the
@@ -256,6 +309,11 @@ seam. The caller says what and where, never how.
 
 Because Extensions attach to a Harness rather than a Workstation, `claude` and
 `claudel` can carry different extension sets. That falls out of the model.
+
+**Pin SHAs, not tags.** An Extension is instructions executed by an agent that
+holds a GitHub token and a kubectl MCP connection. A moving tag on a third-party
+repository is a supply-chain hole, and a SHA closes it as well as a checksum
+would.
 
 ### 4.4 MCPServer
 
@@ -399,7 +457,7 @@ where it lands.
 | 7 MCP servers × 3 dialects | `MCPServer` × 7 |
 | memini + koment plugins, codex marketplace + claude marketplace | `Extension` × 2 |
 | koment codex plugin: GH release, sha256 verify, local marketplace, `plugin add` | `Extension` source type `GitHubRelease` |
-| agent-kit skill batch, version-pinned, checksummed, installed to both skill roots, previous batch removed first | `Extension`, with the uninstall path preserved |
+| agent-kit skill batch, version-pinned, checksummed, installed to both skill roots, previous batch removed first | `Extension` with a `Git` source; the uninstall path is preserved, the bespoke tarball format is not |
 | claude / codex / opencode provider config | `Harness` × 3 (plus `claudel` = 4) |
 
 ### Covered by Workstation
