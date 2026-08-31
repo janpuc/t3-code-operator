@@ -175,6 +175,12 @@ func TestSMBRuntimeVerifierStartsTheNativeServer(t *testing.T) {
 			t.Fatalf("SMB runtime verifier lacks %q", expected)
 		}
 	}
+	for _, line := range strings.Split(verifier, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, `wait "$probe_pid"`) && !strings.Contains(line, "|| true") {
+			t.Fatalf("SMB runtime verifier treats expected shutdown as failure: %q", line)
+		}
+	}
 }
 
 func TestImageVersionSourcesStaySynchronized(t *testing.T) {

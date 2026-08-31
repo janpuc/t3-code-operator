@@ -59,5 +59,5 @@ if grep -F 'runtime-image-fixture-password' "$probe_root/smb.log" >/dev/null; th
 fi
 
 kill "$probe_pid"
-wait "$probe_pid"
+wait "$probe_pid" 2>/dev/null || true
 probe_pid=
