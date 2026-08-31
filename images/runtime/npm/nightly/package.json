@@ -1,0 +1,12 @@
+{
+  "name": "t3-code-runtime-nightly",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+		"@anthropic-ai/claude-code": "2.1.241",
+		"@openai/codex": "0.149.0",
+		"opencode-ai": "1.18.21",
+		"oxfmt": "0.64.0",
+		"t3": "0.0.36-nightly.20260828.1209"
+  }
+}

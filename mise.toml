@@ -2,9 +2,10 @@
 experimental = true
 
 [tools]
-go = "latest"
-"github:koment-dev/koment" = "v3.2.0"
-just = "latest"
-kubectl = "latest"
-helm = "latest"
-kubeconform = "latest"
+actionlint = "1.7.12"
+go = "1.26.7"
+"github:kubernetes-sigs/kind" = "v0.33.0"
+just = "1.58.0"
+kubectl = "1.36.3"
+helm = "4.2.4"
+kubeconform = "0.8.0"

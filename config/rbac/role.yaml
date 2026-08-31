@@ -1,0 +1,101 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: t3-code-operator
+rules:
+  - apiGroups:
+      - t3code.janpuc.com
+    resources:
+      - workstations
+      - harnesses
+      - extensions
+      - mcpservers
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - t3code.janpuc.com
+    resources:
+      - workstations/status
+      - harnesses/status
+      - extensions/status
+      - mcpservers/status
+    verbs:
+      - get
+      - update
+      - patch
+  - apiGroups:
+      - t3code.janpuc.com
+    resources:
+      - workstations/finalizers
+      - harnesses/finalizers
+      - extensions/finalizers
+      - mcpservers/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - persistentvolumeclaims
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+      - rolebindings
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete

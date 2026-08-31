@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "internalChecksFilter": "strict",
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "description": "Keep direct npm dependencies exact.",
+      "matchManagers": ["npm"],
+      "rangeStrategy": "pin"
+    },
+    {
+      "description": "Keep the stable t3 track on release versions.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["images/runtime/npm/stable/package.json"],
+      "matchPackageNames": ["t3"],
+      "allowedVersions": "!/nightly/",
+      "groupName": "stable t3 runtime"
+    },
+    {
+      "description": "Follow only the upstream nightly dist-tag in the nightly track.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["images/runtime/npm/nightly/package.json"],
+      "matchPackageNames": ["t3"],
+      "followTag": "nightly",
+      "minimumReleaseAge": "0 days",
+      "groupName": "nightly t3 runtime"
+    },
+    {
+      "description": "Update fixed baseline declarations. Regenerate mise.lock in the same change.",
+      "matchManagers": ["mise"],
+      "rangeStrategy": "pin"
+    },
+    {
+      "description": "Keep image base references immutable.",
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    },
+    {
+      "description": "Keep workflow actions immutable.",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    }
+  ]
+}

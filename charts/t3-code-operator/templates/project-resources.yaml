@@ -1,0 +1,36 @@
+{{- range $resource := .Values.workstations }}
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Workstation
+metadata:
+  {{- include "t3-code-operator.projectMetadata" (dict "root" $ "resource" $resource) | nindent 2 }}
+spec:
+  {{- tpl (toYaml $resource.spec) $ | nindent 2 }}
+{{- end }}
+{{- range $resource := .Values.harnesses }}
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Harness
+metadata:
+  {{- include "t3-code-operator.projectMetadata" (dict "root" $ "resource" $resource) | nindent 2 }}
+spec:
+  {{- tpl (toYaml $resource.spec) $ | nindent 2 }}
+{{- end }}
+{{- range $resource := .Values.extensions }}
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Extension
+metadata:
+  {{- include "t3-code-operator.projectMetadata" (dict "root" $ "resource" $resource) | nindent 2 }}
+spec:
+  {{- tpl (toYaml $resource.spec) $ | nindent 2 }}
+{{- end }}
+{{- range $resource := .Values.mcpServers }}
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: MCPServer
+metadata:
+  {{- include "t3-code-operator.projectMetadata" (dict "root" $ "resource" $resource) | nindent 2 }}
+spec:
+  {{- tpl (toYaml $resource.spec) $ | nindent 2 }}
+{{- end }}

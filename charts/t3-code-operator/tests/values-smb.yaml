@@ -1,0 +1,57 @@
+operator:
+  image:
+    repository: ghcr.io/janpuc/t3-code-operator
+    tag: ""
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+workstations:
+  - name: nvme
+    spec:
+      image: ghcr.io/janpuc/t3-code-operator@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      storage:
+        data:
+          type: ExistingClaim
+          existingClaim:
+            name: t3-code-data
+        workspace:
+          type: ClaimTemplate
+          claimTemplate:
+            spec:
+              accessModes: [ReadWriteOnce]
+              storageClassName: fast-nvme
+              resources:
+                requests:
+                  storage: 200Gi
+            retentionPolicy: Retain
+      workspaceSharing:
+        smb:
+          username: t3
+          shareName: workspace
+          passwordSecretRef:
+            name: nvme-workspace-smb
+            key: password
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          service:
+            type: LoadBalancer
+            externalTrafficPolicy: Cluster
+            loadBalancerSourceRanges:
+              - 192.0.2.0/24
+            annotations:
+              lb.example.test/pool: lan
+      drain:
+        policy: WaitForIdle
+        timeout: 30m
+        timeoutAction: Block
+
+harnesses:
+  - name: codex
+    spec:
+      instanceId: codex
+      driver: codex
+      workstationRefs:
+        - name: nvme

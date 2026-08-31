@@ -1,0 +1,176 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install the pinned release tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.8.12
+          cache: true
+
+      - name: Validate the release version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "release tag must use v-prefixed semantic versioning" >&2
+            exit 1
+          fi
+
+          chart_version="$(awk '$1 == "version:" { print $2; exit }' charts/t3-code-operator/Chart.yaml)"
+          app_version="$(awk '$1 == "appVersion:" { print $2; exit }' charts/t3-code-operator/Chart.yaml | tr -d '\"')"
+          if [[ "$chart_version" != "$version" || "$app_version" != "$version" ]]; then
+            echo "tag, chart version, and appVersion must match" >&2
+            exit 1
+          fi
+
+          image_repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          chart_repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/t3-code-operator"
+          {
+            echo "version=$version"
+            echo "image_repository=$image_repository"
+            echo "image_tags=$image_repository:stable,$image_repository:$GITHUB_REF_NAME,$image_repository:$version"
+            echo "chart_repository=$chart_repository"
+            echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Run the release contracts
+        run: |
+          actionlint
+          go test ./...
+          make test-api
+          make test-chart
+          git diff --exit-code
+
+      - name: Install emulation support
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - name: Install Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        with:
+          cosign-release: v3.1.3
+
+      - name: Build and publish the runtime image
+        id: bake
+        uses: docker/bake-action@5be5f02ff8819ecd3092ea6b2e6261c31774f2b4 # v6
+        env:
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+        with:
+          files: docker-bake.hcl
+          targets: stable
+          push: true
+          set: |
+            stable.tags=${{ steps.release.outputs.image_tags }}
+            *.args.VCS_REF=${{ github.sha }}
+            *.args.BUILD_DATE=${{ steps.release.outputs.build_date }}
+
+      - name: Sign the runtime image
+        id: image
+        shell: bash
+        env:
+          BAKE_METADATA: ${{ steps.bake.outputs.metadata }}
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+        run: |
+          set -euo pipefail
+          digest="$(jq -er '.stable["containerimage.digest"]' <<<"$BAKE_METADATA")"
+          cosign sign --yes "$IMAGE_REPOSITORY@$digest"
+          echo "digest=$digest" >>"$GITHUB_OUTPUT"
+
+      - name: Package and publish the Helm chart
+        id: chart
+        shell: bash
+        env:
+          GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          CHART_REPOSITORY: ${{ steps.release.outputs.chart_repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          helm package charts/t3-code-operator --destination dist
+          sha256sum "dist/t3-code-operator-$RELEASE_VERSION.tgz" >"dist/t3-code-operator-$RELEASE_VERSION.tgz.sha256"
+          printf '%s' "$GHCR_PASSWORD" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          helm push "dist/t3-code-operator-$RELEASE_VERSION.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts" 2>&1 | tee dist/helm-push.txt
+          digest="$(awk '$1 == "Digest:" && $2 ~ /^sha256:/ { print $2; exit }' dist/helm-push.txt)"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Helm did not report the chart digest" >&2
+            exit 1
+          fi
+          cosign sign --yes "$CHART_REPOSITORY@$digest"
+          echo "digest=$digest" >>"$GITHUB_OUTPUT"
+
+      - name: Create the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          CHART_REPOSITORY: ${{ steps.release.outputs.chart_repository }}
+          CHART_DIGEST: ${{ steps.chart.outputs.digest }}
+        run: |
+          set -euo pipefail
+          {
+            echo "First alpha release of t3-code-operator."
+            echo
+            echo "Runtime image: \`$IMAGE_REPOSITORY@$IMAGE_DIGEST\`"
+            echo
+            echo "Helm chart: \`oci://$CHART_REPOSITORY --version $RELEASE_VERSION\`"
+            echo
+            echo "Chart digest: \`$CHART_DIGEST\`"
+            echo
+            echo "Cursor, Grok, SMB, and drain behavior remain alpha until their live acceptance tests pass."
+          } >dist/release-notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/t3-code-operator-$RELEASE_VERSION.tgz" \
+            "dist/t3-code-operator-$RELEASE_VERSION.tgz.sha256" \
+            --verify-tag \
+            --title "t3-code-operator $GITHUB_REF_NAME" \
+            --notes-file dist/release-notes.md
+
+      - name: Record the immutable release references
+        env:
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          CHART_REPOSITORY: ${{ steps.release.outputs.chart_repository }}
+          CHART_DIGEST: ${{ steps.chart.outputs.digest }}
+        run: |
+          {
+            echo "### Published release"
+            echo
+            echo "Runtime: \`$IMAGE_REPOSITORY@$IMAGE_DIGEST\`"
+            echo
+            echo "Chart: \`$CHART_REPOSITORY@$CHART_DIGEST\`"
+          } >>"$GITHUB_STEP_SUMMARY"

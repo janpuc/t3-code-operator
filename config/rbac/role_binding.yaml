@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: t3-code-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: t3-code-operator
+subjects:
+  - kind: ServiceAccount
+    name: t3-code-operator
+    namespace: t3-code-system

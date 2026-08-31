@@ -1,0 +1,96 @@
+operator:
+  image:
+    repository: ghcr.io/janpuc/t3-code-operator
+    tag: ""
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+workstations:
+  - name: primary
+    spec:
+      image: ghcr.io/janpuc/t3-code-operator@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      serviceAccountName: t3-workstation
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          memory: 8Gi
+      storage:
+        data:
+          type: ExistingClaim
+          existingClaim:
+            name: t3-code-data
+        workspace:
+          type: NFS
+          nfs:
+            server: bigmouth.internal
+            exportPath: /mnt/Vault/Workspace
+      drain:
+        policy: WaitForIdle
+        timeout: 30m
+        timeoutAction: Block
+
+harnesses:
+  - name: codex
+    spec:
+      instanceId: codex
+      driver: codex
+      workstationRefs:
+        - name: primary
+
+extraObjects:
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: t3-workstation
+      namespace: "{{ .Release.Namespace }}"
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: t3-workstation-project-reader
+      namespace: "{{ .Release.Namespace }}"
+    rules:
+      - apiGroups: [""]
+        resources: [pods]
+        verbs: [get, list, watch]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: t3-workstation-project-reader
+      namespace: "{{ .Release.Namespace }}"
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: t3-workstation-project-reader
+    subjects:
+      - kind: ServiceAccount
+        name: t3-workstation
+        namespace: "{{ .Release.Namespace }}"
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: t3-code
+      namespace: "{{ .Release.Namespace }}"
+    spec:
+      parentRefs:
+        - name: envoy-internal
+          namespace: network
+      hostnames:
+        - t3.example.test
+      rules:
+        - timeouts:
+            request: 0s
+            backendRequest: 0s
+          backendRefs:
+            - name: primary
+              port: 3773

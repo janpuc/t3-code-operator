@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "t3-code-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "t3-code-operator.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.operator.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "t3-code-operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "t3-code-operator.selectorLabels" . | nindent 8 }}
+        {{- with .Values.operator.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.operator.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "t3-code-operator.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.operator.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: {{ include "t3-code-operator.image" . }}
+          imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+          command: [/usr/bin/tini, "--"]
+          args:
+            - /usr/local/bin/t3-code-operator
+            - --leader-elect={{ .Values.operator.leaderElection }}
+            - --health-probe-bind-address=:8081
+            - --mise-cache-directory=/var/cache/t3-code-operator/mise
+          env:
+            - name: HOME
+              value: /tmp/home
+            {{- with .Values.operator.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+          resources:
+            {{- toYaml .Values.operator.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: cache
+              mountPath: /var/cache/t3-code-operator
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: cache
+          emptyDir:
+            sizeLimit: {{ .Values.operator.miseCacheSizeLimit }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.operator.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.operator.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.operator.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

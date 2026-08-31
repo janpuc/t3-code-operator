@@ -1,0 +1,4 @@
+The t3-code operator is installed in {{ .Release.Namespace }}.
+
+Apply Workstation, Harness, Extension, and MCPServer resources in one namespace.
+Pin every Workstation image by digest.

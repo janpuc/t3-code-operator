@@ -1,0 +1,40 @@
+nameOverride: ""
+fullnameOverride: ""
+
+operator:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/janpuc/t3-code-operator
+    tag: 0.1.0
+    digest: ""
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  leaderElection: true
+  miseCacheSizeLimit: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  extraEnv: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+workstations: []
+harnesses: []
+extensions: []
+mcpServers: []
+
+extraObjects: []
