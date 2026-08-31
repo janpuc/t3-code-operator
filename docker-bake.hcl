@@ -6,6 +6,10 @@ variable "STABLE_TAG" {
   default = "stable"
 }
 
+variable "RELEASE_VERSION" {
+  default = ""
+}
+
 variable "NIGHTLY_TAG" {
   default = "nightly"
 }
@@ -26,7 +30,11 @@ target "runtime" {
 
 target "stable" {
   inherits = ["runtime"]
-  tags     = ["${IMAGE_REPOSITORY}:${STABLE_TAG}"]
+  tags = RELEASE_VERSION != "" ? [
+    "${IMAGE_REPOSITORY}:stable",
+    "${IMAGE_REPOSITORY}:v${RELEASE_VERSION}",
+    "${IMAGE_REPOSITORY}:${RELEASE_VERSION}",
+  ] : ["${IMAGE_REPOSITORY}:${STABLE_TAG}"]
   args = {
     T3_CHANNEL = "stable"
     T3_VERSION = "0.0.34"

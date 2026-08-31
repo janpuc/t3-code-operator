@@ -52,7 +52,6 @@ jobs:
           {
             echo "version=$version"
             echo "image_repository=$image_repository"
-            echo "image_tags=$image_repository:stable,$image_repository:$GITHUB_REF_NAME,$image_repository:$version"
             echo "chart_repository=$chart_repository"
             echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } >>"$GITHUB_OUTPUT"
@@ -83,17 +82,34 @@ jobs:
         with:
           cosign-release: v3.1.3
 
+      - name: Validate the release image tags
+        shell: bash
+        env:
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx bake --file docker-bake.hcl --print stable |
+            jq -e \
+              --arg repository "$IMAGE_REPOSITORY" \
+              --arg version "$RELEASE_VERSION" \
+              '.target.stable.tags == [
+                ($repository + ":stable"),
+                ($repository + ":v" + $version),
+                ($repository + ":" + $version)
+              ]'
+
       - name: Build and publish the runtime image
         id: bake
         uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7
         env:
           IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
         with:
           files: docker-bake.hcl
           targets: stable
           push: true
           set: |
-            stable.tags=${{ steps.release.outputs.image_tags }}
             *.args.VCS_REF=${{ github.sha }}
             *.args.BUILD_DATE=${{ steps.release.outputs.build_date }}
 
