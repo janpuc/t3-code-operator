@@ -4,6 +4,7 @@ set -euo pipefail
 readonly chart_dir="${1:-charts/t3-code-operator}"
 readonly nfs_values_file="$chart_dir/tests/values-nfs.yaml"
 readonly smb_values_file="$chart_dir/tests/values-smb.yaml"
+readonly kubernetes_schema_version=1.35.0
 render_dir="$(mktemp -d)"
 
 cleanup() {
@@ -26,7 +27,7 @@ helm template contract "$chart_dir" --namespace agents --values "$nfs_values_fil
   --show-only templates/clusterrole.yaml >"$render_dir/operator-role.yaml"
 helm template contract "$chart_dir" --namespace agents --values "$smb_values_file" >"$render_dir/smb.yaml"
 
-kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.36.0 "$render_dir/nfs.yaml" "$render_dir/smb.yaml"
+kubeconform -strict -ignore-missing-schemas -kubernetes-version "$kubernetes_schema_version" "$render_dir/nfs.yaml" "$render_dir/smb.yaml"
 
 for kind in HTTPRoute ServiceAccount Role RoleBinding Workstation Harness; do
   rg -q "^kind: $kind$" "$render_dir/nfs.yaml" || {

@@ -25,7 +25,7 @@ export NO_COLOR=1
 mise --locked --no-hooks --yes -C "$baseline_dir" install --jobs 1
 mise --no-hooks -C "$baseline_dir" bin-paths --json >"$state_root/bin-paths.json"
 
-for name in actionlint flux gh koment minijinja-cli helm helmfile just k9s kubeconform kubectl kustomize lefthook stern talosctl zizmor; do
+for name in actionlint flux gh koment minijinja-cli helm helmfile just k9s kubeconform kubectl kustomize lefthook rg stern talosctl zizmor; do
 	path=$(jq -er --arg name "$name" '[.[] | select(.name == $name)][0].path' "$state_root/bin-paths.json")
 	test -x "$path"
 	test ! -e "$binary_dir/$name"
