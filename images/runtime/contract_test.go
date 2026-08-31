@@ -61,7 +61,7 @@ func TestBaselineMiseLockPinsBothImageArchitectures(t *testing.T) {
 		Tools map[string]string `toml:"tools"`
 	}
 	readTOML(t, "baseline/mise.toml", &configuration)
-	if len(configuration.Tools) != 16 {
+	if len(configuration.Tools) != 17 {
 		t.Fatalf("unexpected fixed baseline size: %d", len(configuration.Tools))
 	}
 	for name, version := range configuration.Tools {
