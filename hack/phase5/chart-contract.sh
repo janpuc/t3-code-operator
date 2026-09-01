@@ -25,6 +25,8 @@ helm lint "$chart_dir"
 helm template contract "$chart_dir" --namespace agents --include-crds --values "$nfs_values_file" >"$render_dir/nfs.yaml"
 helm template contract "$chart_dir" --namespace agents --values "$nfs_values_file" \
   --show-only templates/clusterrole.yaml >"$render_dir/operator-role.yaml"
+helm template contract "$chart_dir" --namespace agents --values "$nfs_values_file" \
+  --show-only templates/operator-role.yaml >"$render_dir/operator-namespace-role.yaml"
 helm template contract "$chart_dir" --namespace agents --values "$smb_values_file" >"$render_dir/smb.yaml"
 
 kubeconform -strict -ignore-missing-schemas -kubernetes-version "$kubernetes_schema_version" "$render_dir/nfs.yaml" "$render_dir/smb.yaml"
@@ -68,6 +70,17 @@ if rg -q 'secrets' "$render_dir/operator-role.yaml"; then
   printf 'operator ClusterRole must not read Secrets\n' >&2
   exit 1
 fi
+
+for required in \
+  'resources: [events]' \
+  'resources: [secrets]' \
+  'provider-secrets' \
+  'verbs: [get, watch]'; do
+  rg -q --fixed-strings "$required" "$render_dir/operator-namespace-role.yaml" || {
+    printf 'operator namespace Role lacks value: %s\n' "$required" >&2
+    exit 1
+  }
+done
 
 for crd in config/crd/bases/*.yaml; do
   cmp "$crd" "$chart_dir/crds/$(basename "$crd")"

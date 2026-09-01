@@ -32,12 +32,74 @@ app.kubernetes.io/component: operator
 {{- end -}}
 {{- end -}}
 
+{{- define "t3-code-operator.operatorRoleName" -}}
+{{- printf "%s-operator" (include "t3-code-operator.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "t3-code-operator.image" -}}
 {{- if .Values.operator.image.digest -}}
 {{- printf "%s@%s" .Values.operator.image.repository .Values.operator.image.digest -}}
 {{- else -}}
 {{- printf "%s:%s" .Values.operator.image.repository (required "operator.image.tag is required when digest is empty" .Values.operator.image.tag) -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "t3-code-operator.secretResourceNames" -}}
+{{- $names := list -}}
+{{- range .Values.rbac.secretResourceNames -}}
+{{- $names = append $names . -}}
+{{- end -}}
+{{- range .Values.workstations -}}
+{{- $credential := dig "spec" "git" "credentialSecretRef" "name" "" . -}}
+{{- if $credential -}}
+{{- $names = append $names $credential -}}
+{{- end -}}
+{{- $signing := dig "spec" "git" "signingKeySecretRef" "name" "" . -}}
+{{- if $signing -}}
+{{- $names = append $names $signing -}}
+{{- end -}}
+{{- end -}}
+{{- range .Values.harnesses -}}
+{{- range (dig "spec" "environment" (list) .) -}}
+{{- $name := dig "valueFrom" "secretKeyRef" "name" "" . -}}
+{{- if $name -}}
+{{- $names = append $names $name -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- range .Values.extensions -}}
+{{- $git := dig "spec" "source" "git" "credentialSecretRef" "name" "" . -}}
+{{- if $git -}}
+{{- $names = append $names $git -}}
+{{- end -}}
+{{- $oci := dig "spec" "source" "oci" "credentialSecretRef" "name" "" . -}}
+{{- if $oci -}}
+{{- $names = append $names $oci -}}
+{{- end -}}
+{{- $marketplace := dig "spec" "source" "marketplace" "credentialSecretRef" "name" "" . -}}
+{{- if $marketplace -}}
+{{- $names = append $names $marketplace -}}
+{{- end -}}
+{{- $release := dig "spec" "source" "githubRelease" "credentialSecretRef" "name" "" . -}}
+{{- if $release -}}
+{{- $names = append $names $release -}}
+{{- end -}}
+{{- end -}}
+{{- range .Values.mcpServers -}}
+{{- range (dig "spec" "environment" (list) .) -}}
+{{- $name := dig "valueFrom" "secretKeyRef" "name" "" . -}}
+{{- if $name -}}
+{{- $names = append $names $name -}}
+{{- end -}}
+{{- end -}}
+{{- range (dig "spec" "headers" (list) .) -}}
+{{- $name := dig "valueFrom" "secretKeyRef" "name" "" . -}}
+{{- if $name -}}
+{{- $names = append $names $name -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- toYaml (sortAlpha (uniq $names)) -}}
 {{- end -}}
 
 {{- define "t3-code-operator.projectMetadata" -}}

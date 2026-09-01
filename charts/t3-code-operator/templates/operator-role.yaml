@@ -1,0 +1,21 @@
+{{- if .Values.rbac.create }}
+{{- $secretNames := include "t3-code-operator.secretResourceNames" . | fromYamlArray }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "t3-code-operator.operatorRoleName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "t3-code-operator.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+  {{- if $secretNames }}
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames:
+      {{- toYaml $secretNames | nindent 6 }}
+    verbs: [get, watch]
+  {{- end }}
+{{- end }}

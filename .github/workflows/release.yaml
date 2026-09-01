@@ -159,7 +159,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "First alpha release of t3-code-operator."
+            echo "Alpha release of t3-code-operator."
             echo
             echo "Runtime image: \`$IMAGE_REPOSITORY@$IMAGE_DIGEST\`"
             echo

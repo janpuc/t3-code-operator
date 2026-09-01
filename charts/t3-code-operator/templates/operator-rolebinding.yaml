@@ -1,0 +1,17 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "t3-code-operator.operatorRoleName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "t3-code-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "t3-code-operator.operatorRoleName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "t3-code-operator.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

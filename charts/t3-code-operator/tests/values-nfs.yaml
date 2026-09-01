@@ -45,6 +45,12 @@ harnesses:
     spec:
       instanceId: codex
       driver: codex
+      environment:
+        - name: PROVIDER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: provider-secrets
+              key: token
       workstationRefs:
         - name: primary
 

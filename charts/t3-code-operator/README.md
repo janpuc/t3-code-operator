@@ -9,13 +9,17 @@ helm install t3-code-operator \
   oci://ghcr.io/janpuc/charts/t3-code-operator \
   --namespace t3-code-system \
   --create-namespace \
-  --version 0.1.2
+  --version 0.1.3
 ```
 
 Set both operator and Workstation image digests in production values. Release
 notes list the immutable runtime image digest.
 
 The chart can also render Workstation, Harness, Extension, and MCPServer objects. Each list is empty by default.
+
+The chart grants the operator `get` and `watch` only for Secret names referenced by chart-managed resources. Kubernetes requires these permissions before the operator can create narrower sidecar Roles. The operator does not fetch Secret values.
+
+Add Secret names to `rbac.secretResourceNames` when `extraObjects` or separately managed custom resources reference them.
 
 Use `extraObjects` for site resources such as HTTPRoutes, ServiceAccounts, Roles, RoleBindings, ExternalSecrets, and backup objects. Helm owns these objects. Their native controllers own their runtime behavior.
 
