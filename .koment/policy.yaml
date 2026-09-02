@@ -10,6 +10,8 @@ spec:
       - upstream-link
       - deprecated
       - public-api
+    allowedAnnotations:
+      - "^v\\d+(\\.\\d+)*"
     generatedPaths:
       - '**/*.gen.go'
       - '**/*.generated.go'

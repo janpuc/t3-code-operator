@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1GYFCDT2FEPXF6HFWKDJW03
+  created: "2026-09-02T11:36:09Z"
+spec:
+  target:
+    file: .koment/policy.yaml
+  type: why
+  title: Version markers on pinned actions are Renovate's, not prose
+  body: |-
+    Every GitHub Action in the workflows is pinned to a commit SHA with a
+    trailing version marker such as "# v6". Renovate's github-actions manager
+    reads that marker to know which release the SHA represents and rewrites both
+    together on updates; deleting the markers silently breaks action updates,
+    and converting them to annotations would detach them from the lines Renovate
+    rewrites. home-ops allowlists the identical pattern for the same reason, so
+    the two repositories stay consistent.
+  anchor:
+    scope: excerpt
+    excerpt: |2-
+          allowedAnnotations:
+            - "^v\\d+(\\.\\d+)*"
+    before: |2-
+            - upstream-link
+            - deprecated
+            - public-api
+    after: |2-
+          generatedPaths:
+            - '**/*.gen.go'
+            - '**/*.generated.go'
+  author:
+    name: claude-code
+    kind: agent
+    source: session
+  git:
+    commit: c5f40c132887a24360b84f574a5a2692ff23ce4c
+    path: .koment/policy.yaml
+    line: 13
+status:
+  lastSeenLine: 13
+  resolution: ok
+  resolvedAt: "2026-09-02T11:36:09Z"
+  resolvedCommit: c5f40c132887a24360b84f574a5a2692ff23ce4c
