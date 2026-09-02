@@ -2,8 +2,8 @@ apiVersion: v2
 name: t3-code-operator
 description: Kubernetes operator for upstream t3-code Workstations
 type: application
-version: 0.1.4
-appVersion: "0.1.4"
+version: 0.1.5
+appVersion: "0.1.5"
 kubeVersion: ">=1.32.0-0"
 home: https://github.com/janpuc/t3-code-operator
 sources:
