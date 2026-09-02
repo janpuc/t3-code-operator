@@ -215,6 +215,63 @@ func TestReplacementWorkstationCannotDeleteAClaimFromThePreviousUID(t *testing.T
 	}
 }
 
+func TestEnsureClaimsAdoptsCompatibleRetainedClaimFromRecreatedWorkstation(t *testing.T) {
+	previous := controllerTestWorkstation()
+	replacement := previous.DeepCopy()
+	replacement.UID = types.UID("replacement-uid")
+	template := &t3v1alpha1.ClaimTemplateVolumeSource{
+		RetentionPolicy: t3v1alpha1.ClaimRetentionRetain,
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Resources: corev1.VolumeResourceRequirements{Requests: corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse("5Gi"),
+			}},
+		},
+	}
+	name := NamesForWorkstation(previous.Name).DataClaim
+	current := buildClaim(previous, name, "data", template, nil)
+	desired := buildClaim(replacement, name, "data", template, nil)
+	scheme := controllerTestScheme(t)
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(current).Build()
+	if err := ensureClaims(context.Background(), kube, replacement, []*corev1.PersistentVolumeClaim{desired}); err != nil {
+		t.Fatalf("recreated Workstation did not adopt its compatible retained claim: %v", err)
+	}
+	stored := &corev1.PersistentVolumeClaim{}
+	key := types.NamespacedName{Namespace: current.Namespace, Name: current.Name}
+	if err := kube.Get(context.Background(), key, stored); err != nil {
+		t.Fatal(err)
+	}
+	if got := stored.Annotations[claimWorkstationUIDAnnotation]; got != string(replacement.UID) {
+		t.Fatalf("retained claim kept stale Workstation UID %q", got)
+	}
+}
+
+func TestEnsureClaimsRejectsDeleteClaimFromPreviousWorkstationUID(t *testing.T) {
+	previous := controllerTestWorkstation()
+	replacement := previous.DeepCopy()
+	replacement.UID = types.UID("replacement-uid")
+	template := &t3v1alpha1.ClaimTemplateVolumeSource{
+		RetentionPolicy: t3v1alpha1.ClaimRetentionDelete,
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+		},
+	}
+	name := NamesForWorkstation(previous.Name).DataClaim
+	current := buildClaim(previous, name, "data", template, nil)
+	desired := buildClaim(replacement, name, "data", template, nil)
+	scheme := controllerTestScheme(t)
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(current).Build()
+	if err := ensureClaims(context.Background(), kube, replacement, []*corev1.PersistentVolumeClaim{desired}); err == nil {
+		t.Fatal("recreated Workstation adopted a Delete claim from the previous UID")
+	}
+}
+
 func TestEnsureClaimsExpandsButNeverShrinksGeneratedStorage(t *testing.T) {
 	workstation := controllerTestWorkstation()
 	names := NamesForWorkstation(workstation.Name)

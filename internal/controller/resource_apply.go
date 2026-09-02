@@ -384,8 +384,11 @@ func validateExistingClaims(ctx context.Context, kube client.Client, workstation
 
 func requireClaimIdentity(claim *corev1.PersistentVolumeClaim, workstation *t3v1alpha1.Workstation, volume string) error {
 	if claim.Annotations[claimWorkstationAnnotation] != workstation.Name ||
-		claim.Annotations[claimWorkstationUIDAnnotation] != string(workstation.UID) ||
 		claim.Annotations[claimVolumeAnnotation] != volume {
+		return fmt.Errorf("PersistentVolumeClaim %s is not owned by this Workstation identity", claim.Name)
+	}
+	if claim.Annotations[claimWorkstationUIDAnnotation] != string(workstation.UID) &&
+		claim.Annotations[claimRetentionAnnotation] != string(t3v1alpha1.ClaimRetentionRetain) {
 		return fmt.Errorf("PersistentVolumeClaim %s is not owned by this Workstation identity", claim.Name)
 	}
 	return nil
