@@ -20,10 +20,14 @@ machine information, repository safe directories, secure pod defaults, and a
 documented idle migration. Read
 [the migration procedure](docs/migration-from-helmrelease.md).
 
-Real Kubernetes image, drain, SMB, and NAS acceptance remains pending because
-this host has no container runtime. Cursor and Grok remain alpha until
-authenticated end-to-end environments are available. Read [PLAN.md](PLAN.md)
-for every release gate and [AGENTS.md](AGENTS.md) for repository rules.
+A canary Workstation on a real cluster now passes live acceptance: image
+rollouts gated by the drain policy, the SMB share, pinned runtime tools,
+extensions installed in all three dialects, and a content change reaching a
+new live revision without a pod restart. NFS workspace acceptance and
+existing-session continuation remain pending until the production cutover.
+Cursor and Grok remain alpha until authenticated end-to-end environments are
+available. Read [PLAN.md](PLAN.md) for every release gate and
+[AGENTS.md](AGENTS.md) for repository rules.
 
 ## The one invariant
 
