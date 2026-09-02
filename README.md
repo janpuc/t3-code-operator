@@ -90,21 +90,26 @@ SMB. Read [the SMB workspace guide](docs/workspace-smb.md).
 
 ## Install
 
-The release publishes a signed runtime image and signed OCI Helm chart:
+The release publishes three signed images — the operator
+(`ghcr.io/janpuc/t3-code-operator`), the Workstation runtime with the
+`t3-coded` sidecar (`ghcr.io/janpuc/t3-code-runtime`), and the SMB
+workspace sidecar (`ghcr.io/janpuc/t3-code-smbd`) — plus a signed OCI
+Helm chart:
 
 ```sh
 helm install t3-code-operator \
   oci://ghcr.io/janpuc/charts/t3-code-operator \
   --namespace t3-code-system \
   --create-namespace \
-  --version 0.1.5
+  --version 0.1.7
 ```
 
-Pin the operator and Workstation images to the digest from the release notes.
+Pin the operator, SMB, and Workstation images to the digests from the
+release notes.
 
 ## Ecosystem
 
-- **t3-code-operator** — this repository: operator, CRDs, chart, sidecar, image
+- **t3-code-operator** — this repository: operator, CRDs, chart, sidecar, images
 
 Skill content is **not** vendored into a repository of its own. `SKILL.md` is a
 settled standard that every major harness reads, and a plain git repository of

@@ -4,10 +4,16 @@ operator:
     tag: ""
     digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
+smb:
+  image:
+    repository: ghcr.io/janpuc/t3-code-smbd
+    tag: ""
+    digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
 workstations:
   - name: nvme
     spec:
-      image: ghcr.io/janpuc/t3-code-operator@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      image: ghcr.io/janpuc/t3-code-runtime@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       storage:
         data:
           type: ExistingClaim

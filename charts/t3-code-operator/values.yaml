@@ -5,7 +5,7 @@ operator:
   replicaCount: 1
   image:
     repository: ghcr.io/janpuc/t3-code-operator
-    tag: 0.1.6
+    tag: 0.1.7
     digest: ""
     pullPolicy: IfNotPresent
   imagePullSecrets: []
@@ -23,6 +23,12 @@ operator:
   tolerations: []
   affinity: {}
   extraEnv: []
+
+smb:
+  image:
+    repository: ghcr.io/janpuc/t3-code-smbd
+    tag: 0.1.7
+    digest: ""
 
 serviceAccount:
   create: true

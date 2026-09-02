@@ -44,6 +44,7 @@ spec:
             - --leader-elect={{ .Values.operator.leaderElection }}
             - --health-probe-bind-address=:8081
             - --mise-cache-directory=/var/cache/t3-code-operator/mise
+            - --smb-image={{ include "t3-code-operator.smbImage" . }}
           env:
             - name: HOME
               value: /tmp/home

@@ -18,10 +18,6 @@ test "$(opencode --version)" = "$expected_opencode_version"
 gh --version | grep -F "gh version $expected_gh_version" >/dev/null
 test "$(stat -c %s /opt/t3-runtime/node_modules/@anthropic-ai/claude-code/bin/claude.exe)" -gt 4096
 node -e 'require("/opt/t3-runtime/node_modules/node-pty"); require("/opt/t3-runtime/node_modules/msgpackr-extract")'
-test -x /usr/local/bin/t3-smbd
-test -x /usr/sbin/smbd
-test -x /usr/bin/smbpasswd
-test -x /usr/bin/net
 
 probe_root=$(mktemp -d)
 probe_pid=

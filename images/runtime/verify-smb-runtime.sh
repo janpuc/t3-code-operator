@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+test -x /usr/local/bin/t3-smbd
+test -x /usr/sbin/smbd
+test -x /usr/bin/smbpasswd
+test -x /usr/bin/net
+
 probe_root=$(mktemp -d)
 probe_pid=
 
@@ -36,7 +41,7 @@ probe_pid=$!
 ready=false
 attempt=0
 while [ "$attempt" -lt 60 ]; do
-	if python3 -c 'import socket; socket.create_connection(("127.0.0.1", 1445), 0.2).close()' >/dev/null 2>&1; then
+	if bash -c 'exec 3<>/dev/tcp/127.0.0.1/1445' 2>/dev/null; then
 		ready=true
 		break
 	fi

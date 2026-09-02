@@ -7,7 +7,7 @@ operator:
 workstations:
   - name: primary
     spec:
-      image: ghcr.io/janpuc/t3-code-operator@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      image: ghcr.io/janpuc/t3-code-runtime@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       serviceAccountName: t3-workstation
       securityContext:
         runAsNonRoot: true

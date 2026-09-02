@@ -49,6 +49,14 @@ app.kubernetes.io/component: operator
 {{- end -}}
 {{- end -}}
 
+{{- define "t3-code-operator.smbImage" -}}
+{{- if .Values.smb.image.digest -}}
+{{- printf "%s@%s" .Values.smb.image.repository .Values.smb.image.digest -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.smb.image.repository (required "smb.image.tag is required when digest is empty" .Values.smb.image.tag) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "t3-code-operator.secretResourceNames" -}}
 {{- $names := list -}}
 {{- range .Values.rbac.secretResourceNames -}}

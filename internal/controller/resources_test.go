@@ -22,7 +22,7 @@ func TestWorkloadResourcesUseFirstClassNFSAndExactSidecarRBAC(t *testing.T) {
 			ReadOnly:   true,
 		},
 	}
-	resources, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), []string{"z-token", "a-token", "a-token"})
+	resources, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), []string{"z-token", "a-token", "a-token"}, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestWorkloadResourcesUseFirstClassNFSAndExactSidecarRBAC(t *testing.T) {
 func TestContentChangesCannotChangeThePodTemplate(t *testing.T) {
 	baseline := controllerTestWorkstation()
 	manifest := controllerTestManifest(t, baseline)
-	baselineResources, err := BuildWorkloadResources(baseline, manifest, []string{"old-token"})
+	baselineResources, err := BuildWorkloadResources(baseline, manifest, []string{"old-token"}, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestContentChangesCannotChangeThePodTemplate(t *testing.T) {
 	content.Spec.Drain = &t3v1alpha1.DrainPolicy{TimeoutAction: t3v1alpha1.DrainTimeoutForce}
 	changedManifest := manifest
 	changedManifest.DesiredRevision = "sha256:" + strings.Repeat("d", 64)
-	contentResources, err := BuildWorkloadResources(content, changedManifest, []string{"new-token"})
+	contentResources, err := BuildWorkloadResources(content, changedManifest, []string{"new-token"}, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestClaimBackedWorkspaceCanBeSharedThroughSMB(t *testing.T) {
 			LoadBalancerSourceRanges: []string{"192.0.2.0/24"},
 		},
 	}}
-	resources, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil)
+	resources, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,8 @@ func TestClaimBackedWorkspaceCanBeSharedThroughSMB(t *testing.T) {
 		t.Fatalf("SMB container is missing: %#v", containers)
 	}
 	smb := containers[2]
-	if smb.Image != workstation.Spec.Image || !sliceContainsSequence(smb.Args, "--username", "developer") ||
+	if smb.Image != testWorkloadImages().SMB || smb.Image == workstation.Spec.Image ||
+		!sliceContainsSequence(smb.Args, "--username", "developer") ||
 		!sliceContainsSequence(smb.Args, "--share-name", "projects") ||
 		!sliceContainsSequence(smb.Args, "--server-identity", string(workstation.UID)) {
 		t.Fatalf("SMB container contract is wrong: %#v", smb)
@@ -209,7 +210,7 @@ func TestFilesystemMountsRejectBlockClaimTemplates(t *testing.T) {
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 		}},
 	}
-	if _, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil); err == nil ||
+	if _, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages()); err == nil ||
 		!strings.Contains(err.Error(), "volumeMode must be Filesystem") {
 		t.Fatalf("expected block volume rejection, got %v", err)
 	}
@@ -229,7 +230,7 @@ func TestSMBRejectsAWorkspaceThatReusesTheDataClaim(t *testing.T) {
 	workstation.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
 		PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 	}}
-	if _, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil); err == nil ||
+	if _, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages()); err == nil ||
 		!strings.Contains(err.Error(), "must use different claims") {
 		t.Fatalf("expected data claim exposure rejection, got %v", err)
 	}
@@ -247,7 +248,7 @@ func TestSMBServiceChangesDoNotRollTheWorkstation(t *testing.T) {
 		Service:           &t3v1alpha1.SMBServiceSpec{Type: corev1.ServiceTypeClusterIP},
 	}}
 	manifest := controllerTestManifest(t, workstation)
-	baseline, err := BuildWorkloadResources(workstation, manifest, nil)
+	baseline, err := BuildWorkloadResources(workstation, manifest, nil, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +257,7 @@ func TestSMBServiceChangesDoNotRollTheWorkstation(t *testing.T) {
 		Type:        corev1.ServiceTypeLoadBalancer,
 		Annotations: map[string]string{"lb.example.test/pool": "lan"},
 	}
-	updated, err := BuildWorkloadResources(changed, manifest, nil)
+	updated, err := BuildWorkloadResources(changed, manifest, nil, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +278,7 @@ func TestSMBSharingRejectsNonClaimWorkspace(t *testing.T) {
 	workstation.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
 		PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 	}}
-	_, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil)
+	_, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages())
 	if err == nil || !strings.Contains(err.Error(), "claim-backed") {
 		t.Fatalf("expected claim-backed workspace rejection, got %v", err)
 	}
@@ -291,7 +292,7 @@ func TestEveryPodShapeFieldChangesThePodTemplate(t *testing.T) {
 		ExistingClaim: &t3v1alpha1.ExistingClaimVolumeSource{Name: "workspace-base"},
 	}
 	manifest := controllerTestManifest(t, baseline)
-	baselineResources, err := BuildWorkloadResources(baseline, manifest, nil)
+	baselineResources, err := BuildWorkloadResources(baseline, manifest, nil, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +329,7 @@ func TestEveryPodShapeFieldChangesThePodTemplate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			changed := baseline.DeepCopy()
 			change(changed)
-			resources, err := BuildWorkloadResources(changed, manifest, nil)
+			resources, err := BuildWorkloadResources(changed, manifest, nil, testWorkloadImages())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -370,7 +371,7 @@ func TestClaimTemplateIsRetainedAndIdentified(t *testing.T) {
 			},
 		},
 	}
-	resources, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil)
+	resources, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +408,7 @@ func TestReservedRuntimeEnvironmentCannotBeOverridden(t *testing.T) {
 	} {
 		workstation := controllerTestWorkstation()
 		workstation.Spec.Environment = []t3v1alpha1.WorkstationEnvironmentVariable{{Name: name, Value: "/tmp/replace"}}
-		_, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil)
+		_, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages())
 		if err == nil || !strings.Contains(err.Error(), "reserved") {
 			t.Fatalf("expected reserved environment rejection for %s, got %v", name, err)
 		}
@@ -434,4 +435,8 @@ func sliceContainsSequence(values []string, first, second string) bool {
 		}
 	}
 	return false
+}
+
+func testWorkloadImages() WorkloadImages {
+	return WorkloadImages{SMB: "ghcr.io/janpuc/t3-code-smbd@sha256:" + strings.Repeat("e", 64)}
 }

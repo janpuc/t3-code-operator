@@ -2,6 +2,7 @@
 
 ARG GO_IMAGE=golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f6437930887c2f6a91ea242459e5514
 ARG NODE_IMAGE=node:24.10.0-bookworm-slim@sha256:b8d2197aff9129d16c801a3e3e1b2a873c4946480f5a310f38056df2268c38d9
+ARG DEBIAN_IMAGE=debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
 FROM ${GO_IMAGE} AS go-builder
 ARG TARGETOS=linux
@@ -60,7 +61,46 @@ COPY images/runtime/baseline /opt/t3-code-baseline/source
 COPY images/runtime/install-baseline.sh /usr/local/bin/install-t3-baseline
 RUN chmod 0755 /usr/local/bin/install-t3-baseline && /usr/local/bin/install-t3-baseline
 
-FROM ${NODE_IMAGE}
+FROM ${DEBIAN_IMAGE} AS operator
+ARG VCS_REF=unknown
+ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.source="https://github.com/janpuc/t3-code-operator" \
+      org.opencontainers.image.title="t3-code-operator" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.created="$BUILD_DATE"
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates tini && \
+    rm -rf /var/lib/apt/lists/*
+COPY --from=go-builder /out/t3-code-operator /usr/local/bin/t3-code-operator
+COPY --from=baseline-builder /usr/local/bin/mise /usr/local/bin/mise
+RUN mkdir -p /var/cache/t3-code-operator/mise && \
+    chown -R 1000:1000 /var/cache/t3-code-operator
+USER 1000:1000
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/usr/local/bin/t3-code-operator"]
+
+FROM ${DEBIAN_IMAGE} AS smbd
+ARG VCS_REF=unknown
+ARG BUILD_DATE=unknown
+LABEL org.opencontainers.image.source="https://github.com/janpuc/t3-code-operator" \
+      org.opencontainers.image.title="t3-code-smbd" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.created="$BUILD_DATE"
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    samba tini && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --uid 1000 --user-group --no-create-home --shell /usr/sbin/nologin node
+COPY --from=go-builder /out/t3-smbd /usr/local/bin/t3-smbd
+COPY images/runtime/verify-smb-runtime.sh /usr/local/bin/verify-t3-smb-runtime
+RUN chmod 0755 /usr/local/bin/verify-t3-smb-runtime && \
+    verify-t3-smb-runtime
+EXPOSE 1445
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/usr/local/bin/t3-smbd"]
+
+FROM ${NODE_IMAGE} AS runtime
 ARG TARGETARCH
 ARG T3_CHANNEL=stable
 ARG T3_VERSION=0.0.34
@@ -81,12 +121,10 @@ LABEL org.opencontainers.image.source="https://github.com/janpuc/t3-code-operato
       t3code.janpuc.com/track="$T3_CHANNEL"
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates coreutils curl git git-lfs gnupg jq openssh-client python3 samba tini unzip xz-utils && \
+    ca-certificates coreutils curl git git-lfs gnupg jq openssh-client python3 tini unzip xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-builder /out/t3-coded /usr/local/bin/t3-coded
-COPY --from=go-builder /out/t3-smbd /usr/local/bin/t3-smbd
-COPY --from=go-builder /out/t3-code-operator /usr/local/bin/t3-code-operator
 COPY --from=npm-builder /opt/t3-runtime /opt/t3-runtime
 COPY --from=baseline-builder /usr/local/bin/mise /usr/local/bin/mise
 COPY --from=baseline-builder /opt/mise /opt/mise
@@ -128,9 +166,7 @@ RUN mkdir -p /data/home /data/t3 /data/t3-coded /workspace /var/cache/t3-code-op
     ln -sfn /data/t3-coded/machine-info /etc/machine-info && \
     chown -R node:node /data /workspace /var/cache/t3-code-operator
 COPY images/runtime/verify-runtime.sh /usr/local/bin/verify-t3-runtime
-COPY images/runtime/verify-smb-runtime.sh /usr/local/bin/verify-t3-smb-runtime
-RUN chmod 0755 /usr/local/bin/verify-t3-runtime /usr/local/bin/verify-t3-smb-runtime && \
-    verify-t3-smb-runtime
+RUN chmod 0755 /usr/local/bin/verify-t3-runtime
 USER node
 RUN verify-t3-runtime "$T3_VERSION" "$CODEX_VERSION" "$CLAUDE_VERSION" "$CURSOR_VERSION" "$GROK_VERSION" "$OPENCODE_VERSION" "$GH_VERSION"
 

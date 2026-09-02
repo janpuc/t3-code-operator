@@ -84,6 +84,18 @@ func TestDrainRejectsAReportFromAnotherManagedPodRevision(t *testing.T) {
 	}
 }
 
+func TestDrainPermitsAFreshIdleReportBeforeAnyLiveRevision(t *testing.T) {
+	now := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
+	report := controllerTestReport(now.Add(-5*time.Second), sidecar.ActivityStateIdle)
+	report.LiveRevision = ""
+	report.State = apply.ApplyStateFailed
+	report.Reason = "ExtensionCommitFailed"
+	decision := evaluateDrain(&report, now, nil, nil, 15*time.Second)
+	if !decision.Permit || decision.Reason != "StableIdle" {
+		t.Fatalf("a never-applied sidecar cannot receive its fix: %#v", decision)
+	}
+}
+
 func controllerTestReport(observedAt time.Time, activity sidecar.ActivityState) sidecar.StatusReport {
 	return sidecar.StatusReport{
 		APIVersion:         sidecar.ReportAPIVersion,

@@ -20,6 +20,7 @@ func main() {
 	var healthProbeAddress string
 	var miseBinary string
 	var miseCacheDirectory string
+	var smbImage string
 	var toolResolutionTimeout time.Duration
 	var activityFreshness time.Duration
 	var logOptions zap.Options
@@ -28,6 +29,7 @@ func main() {
 	flag.StringVar(&healthProbeAddress, "health-probe-bind-address", ":8081", "Bind address for health probes. Use 0 to disable them.")
 	flag.StringVar(&miseBinary, "mise-binary", "/usr/local/bin/mise", "Absolute path to the mise executable.")
 	flag.StringVar(&miseCacheDirectory, "mise-cache-directory", "/var/cache/t3-code-operator/mise", "Absolute path to the shared mise resolution cache.")
+	flag.StringVar(&smbImage, "smb-image", "", "Image reference for the SMB workspace sidecar container.")
 	flag.DurationVar(&toolResolutionTimeout, "tool-resolution-timeout", 2*time.Minute, "Maximum duration for one mise platform resolution.")
 	flag.DurationVar(&activityFreshness, "activity-freshness", 15*time.Second, "Maximum age of a drain activity report.")
 	logOptions.BindFlags(flag.CommandLine)
@@ -77,6 +79,7 @@ func main() {
 			Scheme:            manager.GetScheme(),
 			Assembler:         assembler,
 			ActivityFreshness: activityFreshness,
+			SMBImage:          smbImage,
 		},
 		&controller.HarnessReconciler{Client: manager.GetClient(), Assembler: assembler},
 		&controller.ExtensionReconciler{Client: manager.GetClient(), Assembler: assembler},

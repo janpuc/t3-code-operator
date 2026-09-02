@@ -41,6 +41,7 @@ type WorkstationReconciler struct {
 	Scheme            *runtime.Scheme
 	Assembler         *Assembler
 	ActivityFreshness time.Duration
+	SMBImage          string
 	Now               func() time.Time
 }
 
@@ -78,7 +79,7 @@ func (reconciler *WorkstationReconciler) Reconcile(ctx context.Context, request 
 		return reconciler.failReconcile(ctx, workstation, "ResourceReadFailed", err)
 	}
 	expandedSecrets := unionSortedStrings(priorSecrets, assembly.SecretNames)
-	resources, err := BuildWorkloadResources(workstation, assembly.Manifest, expandedSecrets)
+	resources, err := BuildWorkloadResources(workstation, assembly.Manifest, expandedSecrets, WorkloadImages{SMB: reconciler.SMBImage})
 	if err != nil {
 		return reconciler.failReconcile(ctx, workstation, "ResourceBuildFailed", err)
 	}
@@ -158,7 +159,7 @@ func (reconciler *WorkstationReconciler) Reconcile(ctx context.Context, request 
 	}
 
 	if reportProgramsDeployment(report, deployment, assembly.Manifest.DesiredRevision) {
-		contracted, buildErr := BuildWorkloadResources(workstation, assembly.Manifest, assembly.SecretNames)
+		contracted, buildErr := BuildWorkloadResources(workstation, assembly.Manifest, assembly.SecretNames, WorkloadImages{SMB: reconciler.SMBImage})
 		if buildErr != nil {
 			return reconciler.failReconcile(ctx, workstation, "ResourceBuildFailed", buildErr)
 		}

@@ -473,6 +473,7 @@ func newWorkstationTestReconciler(
 		Client:            kube,
 		Scheme:            scheme,
 		ActivityFreshness: 15 * time.Second,
+		SMBImage:          testWorkloadImages().SMB,
 		Now:               func() time.Time { return now },
 	}
 	reconciler.Assembler = &Assembler{Reader: kube}

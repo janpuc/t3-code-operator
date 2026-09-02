@@ -66,6 +66,7 @@ for required in \
   'name: nvme-workspace-smb' \
   'type: LoadBalancer' \
   'externalTrafficPolicy: Cluster' \
+  'smb-image=ghcr.io/janpuc/t3-code-smbd@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
   '192.0.2.0/24'; do
   rg -q --fixed-strings "$required" "$render_dir/smb.yaml" || {
     printf 'SMB render lacks value: %s\n' "$required" >&2

@@ -111,6 +111,12 @@ func TestDockerfilePinsSourcesAndRunsAsNonRoot(t *testing.T) {
 	for _, expected := range []string{
 		"ARG GO_IMAGE=golang:1.26.7-bookworm@sha256:",
 		"ARG NODE_IMAGE=node:24.10.0-bookworm-slim@sha256:",
+		"ARG DEBIAN_IMAGE=debian:bookworm-slim@sha256:",
+		"FROM ${DEBIAN_IMAGE} AS operator",
+		"FROM ${DEBIAN_IMAGE} AS smbd",
+		"FROM ${NODE_IMAGE} AS runtime",
+		"COPY --from=go-builder /out/t3-code-operator /usr/local/bin/t3-code-operator",
+		"COPY --from=baseline-builder /usr/local/bin/mise /usr/local/bin/mise",
 		"ARG T3_VERSION=0.0.34",
 		"ARG CODEX_VERSION=0.149.0",
 		"ARG CLAUDE_VERSION=2.1.241",
@@ -140,8 +146,8 @@ func TestDockerfilePinsSourcesAndRunsAsNonRoot(t *testing.T) {
 	}
 }
 
-func TestRuntimeVerifierChecksSMBBinaries(t *testing.T) {
-	raw, err := os.ReadFile("verify-runtime.sh")
+func TestSMBVerifierChecksItsBinaries(t *testing.T) {
+	raw, err := os.ReadFile("verify-smb-runtime.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +159,7 @@ func TestRuntimeVerifierChecksSMBBinaries(t *testing.T) {
 		"test -x /usr/bin/net",
 	} {
 		if !strings.Contains(verifier, expected) {
-			t.Fatalf("runtime verifier lacks %q", expected)
+			t.Fatalf("SMB verifier lacks %q", expected)
 		}
 	}
 }
@@ -167,7 +173,7 @@ func TestSMBRuntimeVerifierStartsTheNativeServer(t *testing.T) {
 	for _, expected := range []string{
 		"/usr/local/bin/t3-smbd",
 		"--server-identity runtime-image-contract",
-		"socket.create_connection",
+		"/dev/tcp/127.0.0.1/1445",
 		"/usr/bin/net --configfile=",
 		"getlocalsid",
 	} {

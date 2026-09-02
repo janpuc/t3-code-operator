@@ -92,10 +92,15 @@ func boundedResourceName(name, suffix string) string {
 	return result
 }
 
+type WorkloadImages struct {
+	SMB string
+}
+
 func BuildWorkloadResources(
 	workstation *t3v1alpha1.Workstation,
 	manifest render.Manifest,
 	secretNames []string,
+	images WorkloadImages,
 ) (WorkloadResources, error) {
 	if workstation == nil {
 		return WorkloadResources{}, errors.New("Workstation is required")
@@ -119,7 +124,7 @@ func BuildWorkloadResources(
 	if err != nil {
 		return WorkloadResources{}, err
 	}
-	smbContainer, smbVolumes, smbService, err := buildSMBWorkspaceResources(workstation, names, labels, owner)
+	smbContainer, smbVolumes, smbService, err := buildSMBWorkspaceResources(workstation, names, labels, owner, images.SMB)
 	if err != nil {
 		return WorkloadResources{}, err
 	}
@@ -199,6 +204,7 @@ func buildSMBWorkspaceResources(
 	names ResourceNames,
 	labels map[string]string,
 	owner metav1.OwnerReference,
+	smbImage string,
 ) (*corev1.Container, []corev1.Volume, *corev1.Service, error) {
 	if workstation.Spec.WorkspaceSharing == nil || workstation.Spec.WorkspaceSharing.SMB == nil {
 		return nil, nil, nil, nil
@@ -236,9 +242,12 @@ func buildSMBWorkspaceResources(
 	runAsUser := int64(0)
 	runAsGroup := int64(0)
 	secretMode := int32(0o400)
+	if smbImage == "" {
+		return nil, nil, nil, errors.New("an SMB workspace requires the operator's --smb-image")
+	}
 	container := &corev1.Container{
 		Name:            "workspace-smb",
-		Image:           workstation.Spec.Image,
+		Image:           smbImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"/usr/bin/tini", "--"},
 		Args: []string{

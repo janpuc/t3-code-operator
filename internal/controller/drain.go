@@ -61,7 +61,6 @@ func evaluateDrain(
 
 func reportIsFreshAndIdle(report *sidecar.StatusReport, now time.Time, freshness time.Duration) bool {
 	if report == nil || report.Validate() != nil || report.ProtocolVersion != render.ProtocolVersion ||
-		report.LiveRevision == "" ||
 		report.Activity != sidecar.ActivityStateIdle {
 		return false
 	}
@@ -73,8 +72,7 @@ func reportIsFreshAndIdle(report *sidecar.StatusReport, now time.Time, freshness
 }
 
 func drainWaitReason(report *sidecar.StatusReport, now time.Time, freshness time.Duration) string {
-	if report == nil || report.Validate() != nil || report.ProtocolVersion != render.ProtocolVersion ||
-		report.LiveRevision == "" {
+	if report == nil || report.Validate() != nil || report.ProtocolVersion != render.ProtocolVersion {
 		return "ActivityUnavailable"
 	}
 	observedAt, err := time.Parse(time.RFC3339Nano, report.ActivityObservedAt)
