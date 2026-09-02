@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1GXTHGTPPAZQ5K8PRSTDP83
+  created: "2026-09-02T11:24:46Z"
+spec:
+  target:
+    file: internal/controller/tool_resolver.go
+  type: gotcha
+  title: mise lock canonicalises v-prefixed specifiers to bare versions
+  body: |-
+    A github-backend ToolSpec pinned as "v3.2.0" produces a lock entry whose
+    version field is "3.2.0" with the original request preserved only in
+    specifiers. Comparing the locked version against the spec literally rejected
+    every v-pinned tool, and because resolveArtifacts degrades per-platform
+    errors to a skip, the whole resolution failed with a causeless "did not
+    resolve" message. That exact chain shipped as the first live deployment
+    failure of v0.1.5: the canary Workstation sat at ResolutionFailed with no
+    log line. Compare versions with the v prefix stripped on both sides, and
+    keep the last per-platform failure wrapped in the final error so the cause
+    survives.
+  anchor:
+    scope: excerpt
+    excerpt: "\tif strings.TrimPrefix(lockedVersion, \"v\") != strings.TrimPrefix(version, \"v\") || lockedBackend != backend {\n\t\treturn render.ToolArtifact{}, errors.New(\"mise lock tool identity does not match\")\n\t}"
+    before: "\tentry := entries[0]\n\tlockedVersion, _ := entry[\"version\"].(string)\n\tlockedBackend, _ := entry[\"backend\"].(string)"
+    after: "\tartifactMap, ok := entry[\"platforms.\"+platform].(map[string]any)\n\tif !ok {\n\t\treturn render.ToolArtifact{}, errors.New(\"mise lock platform entry is missing\")"
+  author:
+    name: claude-code
+    kind: agent
+    source: session
+  git:
+    commit: 5211e0c574d841a33b6d87e1b7d68ea867b38679
+    path: internal/controller/tool_resolver.go
+    line: 290
+status:
+  lastSeenLine: 290
+  resolution: ok
+  resolvedAt: "2026-09-02T11:24:46Z"
+  resolvedCommit: 5211e0c574d841a33b6d87e1b7d68ea867b38679

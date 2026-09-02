@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1GXTS3KX42M8XTKTMGZ30KR
+  created: "2026-09-02T11:24:54Z"
+spec:
+  target:
+    file: internal/apply/native_installers.go
+  type: why
+  title: Release bundles keep a wrapper directory the installers must descend
+  body: |-
+    GitHub release archives conventionally wrap their payload in one top-level
+    directory: koment-plugin-codex tarballs extract to koment-codex-marketplace/
+    with the marketplace manifest one level down. The pre-operator init script
+    hid this with tar --strip-components=1. The operator extracts archives
+    verbatim into the extension cache, so passing the cache content root to
+    `codex plugin marketplace add` fails with "marketplace root does not contain
+    a supported manifest" — the first live canary hit exactly that as an
+    ExtensionCommitFailed loop. Descending happens at install time rather than
+    fetch time so that already-populated cache entries are also repaired; a
+    valid marketplace root must hold a manifest file, so a root holding exactly
+    one directory and nothing else can never itself be the marketplace. The
+    DirEntry type check refuses to descend through symlinks, keeping the
+    resolved root inside the managed cache.
+  anchor:
+    scope: excerpt
+    excerpt: func descendSingleRootDirectory(path string) (string, error) {
+    before: "\treturn result, nil\n}\n"
+    after: "\tentries, err := os.ReadDir(path)\n\tif err != nil {\n\t\treturn \"\", err"
+  author:
+    name: claude-code
+    kind: agent
+    source: session
+  git:
+    commit: 5211e0c574d841a33b6d87e1b7d68ea867b38679
+    path: internal/apply/native_installers.go
+    line: 199
+status:
+  lastSeenLine: 199
+  resolution: ok
+  resolvedAt: "2026-09-02T11:24:54Z"
+  resolvedCommit: 5211e0c574d841a33b6d87e1b7d68ea867b38679

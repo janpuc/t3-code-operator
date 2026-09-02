@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "koment": {
+      "command": [
+        "koment",
+        "mcp",
+        "--write"
+      ],
+      "type": "local"
+    }
+  },
+  "plugin": [
+    "./.opencode/plugins/koment.js"
+  ]
+}

@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1GWW47PAP4H0YEZFNEJ0TYM
+  created: "2026-09-02T11:08:09Z"
+spec:
+  target:
+    file: internal/controller/drain.go
+  type: why
+  title: Drain trusts fresh idle activity even before any revision is live
+  body: |-
+    The idle check once also required a non-empty LiveRevision, which deadlocked
+    recovery: a Workstation whose sidecar had never applied a revision (the
+    canary's ExtensionCommitFailed loop) could never attest idleness, so the
+    pod-shape rollout carrying the sidecar fix was itself drain-blocked, and
+    with timeoutAction Block that was forever. Activity comes from the running
+    t3 server and is meaningful regardless of what configuration is live; a busy
+    t3 still reports Active and blocks the roll, and an unreachable t3 degrades
+    to Unknown, which also blocks. Dropping the LiveRevision requirement keeps
+    every safety property while letting a broken-from-birth Workstation accept
+    the fix that unbreaks it.
+  anchor:
+    scope: excerpt
+    excerpt: func reportIsFreshAndIdle(report *sidecar.StatusReport, now time.Time, freshness time.Duration) bool {
+    before: "\treturn decision\n}\n"
+    after: "\tif report == nil || report.Validate() != nil || report.ProtocolVersion != render.ProtocolVersion ||\n\t\treport.Activity != sidecar.ActivityStateIdle {\n\t\treturn false"
+  author:
+    name: claude-code
+    kind: agent
+    source: session
+  git:
+    commit: c79bd38361de5fe29869a73940535165e196d9d9
+    path: internal/controller/drain.go
+    line: 62
+status:
+  lastSeenLine: 62
+  resolution: ok
+  resolvedAt: "2026-09-02T11:08:09Z"
+  resolvedCommit: c79bd38361de5fe29869a73940535165e196d9d9

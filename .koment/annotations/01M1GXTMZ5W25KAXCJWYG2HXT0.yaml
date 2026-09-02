@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1GXTMZ5W25KAXCJWYG2HXT0
+  created: "2026-09-02T11:24:50Z"
+spec:
+  target:
+    file: internal/controller/workstation_controller.go
+  type: why
+  title: Resolution failures surface their cause in status, not logs
+  body: |-
+    Assembly failures are expected steady states (a missing secret, an
+    unresolvable tool), so the reconciler requeues quietly instead of returning
+    an error that would spam logs and escalate backoff. The price was total
+    silence: the operator once looped for hours with generic "did not resolve"
+    conditions and zero diagnostics. The condition message therefore carries the
+    assembly error verbatim, bounded to resolutionFailureDetailLimit so a
+    pathological error cannot bloat etcd writes. Assembly errors are constructed
+    from field paths, resource names, and command outcomes, never secret values,
+    so embedding them in status does not violate the no-secrets-in-status rule.
+  anchor:
+    scope: excerpt
+    excerpt: const resolutionFailureDetailLimit = 1024
+    before: "\t})\n}\n"
+    after: "\nfunc resolutionFailureMessage(cause error) string {\n\tmessage := \"The desired resources did not resolve.\""
+  author:
+    name: claude-code
+    kind: agent
+    source: session
+  git:
+    commit: 5211e0c574d841a33b6d87e1b7d68ea867b38679
+    path: internal/controller/workstation_controller.go
+    line: 298
+status:
+  lastSeenLine: 298
+  resolution: ok
+  resolvedAt: "2026-09-02T11:24:50Z"
+  resolvedCommit: 5211e0c574d841a33b6d87e1b7d68ea867b38679

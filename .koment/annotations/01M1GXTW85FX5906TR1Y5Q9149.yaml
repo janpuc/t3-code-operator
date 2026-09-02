@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1GXTW85FX5906TR1Y5Q9149
+  created: "2026-09-02T11:24:57Z"
+spec:
+  target:
+    file: internal/sidecar/runner.go
+  type: anti-pattern
+  title: Never copy applier error text into the sidecar report
+  body: |-
+    Applier errors can embed secret material — fetchers and tool stages handle
+    credential values, and TestRunnerReportsFailedToolWithoutErrorText plants a
+    secret canary in the applier error to pin this. The report ConfigMap is
+    rendered output, where secrets are forbidden, so failure diagnosis goes
+    through name-only fields such as Reason and FailedTools, never raw error
+    strings. An attempt to add a message field carrying applyErr.Error() was
+    made and reverted on 2026-09-02 when that test caught it; a future
+    diagnosability improvement needs a redaction design or more name-only fields
+    (for example failed extension names), not error text.
+  anchor:
+    scope: excerpt
+    excerpt: "\tif applyErr != nil && report.Reason == \"\" {\n\t\treport.State = apply.ApplyStateFailed\n\t\treport.Reason = \"ApplyFailed\"\n\t}"
+    before: "\tif report.MaterializationRevision != \"\" {\n\t\trunner.liveMaterializationRevision = report.MaterializationRevision\n\t}"
+    after: "\n\tlatestLive, latestExists, latestErr := runner.applier.LiveManifest()\n\tif latestErr == nil && latestExists {"
+  author:
+    name: claude-code
+    kind: agent
+    source: session
+  git:
+    commit: 5211e0c574d841a33b6d87e1b7d68ea867b38679
+    path: internal/sidecar/runner.go
+    line: 304
+status:
+  lastSeenLine: 304
+  resolution: ok
+  resolvedAt: "2026-09-02T11:24:58Z"
+  resolvedCommit: 5211e0c574d841a33b6d87e1b7d68ea867b38679
