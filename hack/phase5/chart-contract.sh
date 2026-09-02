@@ -28,8 +28,15 @@ helm template contract "$chart_dir" --namespace agents --values "$nfs_values_fil
 helm template contract "$chart_dir" --namespace agents --values "$nfs_values_file" \
   --show-only templates/operator-role.yaml >"$render_dir/operator-namespace-role.yaml"
 helm template contract "$chart_dir" --namespace agents --values "$smb_values_file" >"$render_dir/smb.yaml"
+helm template t3-code-operator "$chart_dir" --namespace agents --values "$nfs_values_file" \
+  --show-only templates/deployment.yaml >"$render_dir/operator-matching-release.yaml"
 
 kubeconform -strict -ignore-missing-schemas -kubernetes-version "$kubernetes_schema_version" "$render_dir/nfs.yaml" "$render_dir/smb.yaml"
+
+rg -q '^  name: t3-code-operator$' "$render_dir/operator-matching-release.yaml" || {
+  printf 'operator name repeats identical release and chart names\n' >&2
+  exit 1
+}
 
 for kind in HTTPRoute ServiceAccount Role RoleBinding Workstation Harness; do
   rg -q "^kind: $kind$" "$render_dir/nfs.yaml" || {
