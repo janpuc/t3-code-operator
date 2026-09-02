@@ -71,6 +71,28 @@ func TestWorkstationReconcilerCreatesTheOwnedRuntime(t *testing.T) {
 	}
 }
 
+func TestResolutionFailureReportsTheCause(t *testing.T) {
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+	workstation := controllerTestWorkstation()
+	harness := controllerHarness("provider-token")
+	kube, reconciler := newWorkstationTestReconciler(t, now, workstation, harness)
+	reconcileWorkstation(t, reconciler)
+
+	stored := getWorkstation(t, kube)
+	if conditionStatus(stored.Status.Conditions, conditionResolved) != metav1.ConditionFalse {
+		t.Fatalf("resolution did not fail: %#v", stored.Status.Conditions)
+	}
+	var message string
+	for _, condition := range stored.Status.Conditions {
+		if condition.Type == conditionResolved {
+			message = condition.Message
+		}
+	}
+	if !strings.Contains(message, "tool resolver is required") {
+		t.Fatalf("the Resolved condition hides the failure cause: %q", message)
+	}
+}
+
 func TestHarnessContentChangeDoesNotUpdateTheDeployment(t *testing.T) {
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	workstation := controllerTestWorkstation()

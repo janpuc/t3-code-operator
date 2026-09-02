@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	t3v1alpha1 "github.com/janpuc/t3-code-operator/api/v1alpha1"
@@ -65,7 +66,7 @@ func (reconciler *WorkstationReconciler) Reconcile(ctx context.Context, request 
 
 	assembly, err := reconciler.Assembler.Assemble(ctx, workstation)
 	if err != nil {
-		if statusErr := reconciler.setResolutionFailure(ctx, workstation); statusErr != nil {
+		if statusErr := reconciler.setResolutionFailure(ctx, workstation, err); statusErr != nil {
 			return ctrl.Result{}, errors.Join(err, statusErr)
 		}
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -282,13 +283,32 @@ func (reconciler *WorkstationReconciler) readReport(
 func (reconciler *WorkstationReconciler) setResolutionFailure(
 	ctx context.Context,
 	workstation *t3v1alpha1.Workstation,
+	cause error,
 ) error {
+	message := resolutionFailureMessage(cause)
 	return reconciler.patchStatus(ctx, workstation, func(status *t3v1alpha1.WorkstationStatus) {
 		status.ObservedGeneration = workstation.Generation
-		setCondition(&status.Conditions, conditionResolved, metav1.ConditionFalse, "ResolutionFailed", "The desired resources did not resolve.", workstation.Generation)
+		setCondition(&status.Conditions, conditionResolved, metav1.ConditionFalse, "ResolutionFailed", message, workstation.Generation)
 		setCondition(&status.Conditions, conditionProgrammed, metav1.ConditionFalse, "ResolutionFailed", "The sidecar cannot apply this generation.", workstation.Generation)
 		setCondition(&status.Conditions, conditionReady, metav1.ConditionFalse, "ResolutionFailed", "The current generation is not ready.", workstation.Generation)
 	})
+}
+
+const resolutionFailureDetailLimit = 1024
+
+func resolutionFailureMessage(cause error) string {
+	message := "The desired resources did not resolve."
+	if cause == nil {
+		return message
+	}
+	detail := strings.TrimSpace(cause.Error())
+	if detail == "" {
+		return message
+	}
+	if len(detail) > resolutionFailureDetailLimit {
+		detail = detail[:resolutionFailureDetailLimit]
+	}
+	return "The desired resources did not resolve: " + detail
 }
 
 func (reconciler *WorkstationReconciler) failReconcile(

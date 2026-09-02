@@ -155,6 +155,7 @@ func (resolver *MiseToolResolver) resolveArtifacts(
 		return nil, err
 	}
 	artifacts := make([]render.ToolArtifact, 0, len(resolver.platforms))
+	var lastFailure error
 	for _, platform := range resolver.platforms {
 		if err := os.Remove(filepath.Join(directory, "mise.lock")); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
@@ -163,19 +164,25 @@ func (resolver *MiseToolResolver) resolveArtifacts(
 		err := resolver.runMiseLock(commandContext, directory, platform)
 		cancel()
 		if err != nil {
+			lastFailure = err
 			continue
 		}
 		raw, err := readBoundedResolverFile(filepath.Join(directory, "mise.lock"))
 		if err != nil {
+			lastFailure = err
 			continue
 		}
 		artifact, err := parseMiseLockArtifact(raw, tool.Backend, tool.Version, platform)
 		if err != nil {
+			lastFailure = err
 			continue
 		}
 		artifacts = append(artifacts, artifact)
 	}
 	if len(artifacts) == 0 {
+		if lastFailure != nil {
+			return nil, fmt.Errorf("mise did not resolve an artifact for a supported platform: %w", lastFailure)
+		}
 		return nil, errors.New("mise did not resolve an artifact for a supported platform")
 	}
 	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].Platform < artifacts[j].Platform })
@@ -280,7 +287,7 @@ func parseMiseLockArtifact(
 	entry := entries[0]
 	lockedVersion, _ := entry["version"].(string)
 	lockedBackend, _ := entry["backend"].(string)
-	if lockedVersion != version || lockedBackend != backend {
+	if strings.TrimPrefix(lockedVersion, "v") != strings.TrimPrefix(version, "v") || lockedBackend != backend {
 		return render.ToolArtifact{}, errors.New("mise lock tool identity does not match")
 	}
 	artifactMap, ok := entry["platforms."+platform].(map[string]any)

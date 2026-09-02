@@ -52,6 +52,40 @@ func TestNativeInstallerReplacesPinnedMarketplaceAndRollsBack(t *testing.T) {
 	assertFakeNativeState(t, cli.state, oldCache)
 }
 
+func TestNativeInstallerDescendsAWrappedReleaseBundle(t *testing.T) {
+	dataRoot := t.TempDir()
+	digest := strings.Repeat("c", 64)
+	content := filepath.Join(dataRoot, "t3-coded", "extensions", "cache", digest, "content")
+	wrapped := filepath.Join(content, "koment-codex-marketplace")
+	if err := os.MkdirAll(wrapped, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cli := newFakeNativePluginCLI(nativePluginState{
+		marketplaces: map[string]string{},
+		plugins:      map[string]bool{},
+	})
+	runner := testNativeInstallerRunner(dataRoot, cli)
+	desired := cachedNativeActivation("codex", "koment-dev", "koment", content)
+
+	transaction, err := runner.Stage(context.Background(), ExtensionInstallerRequest{
+		Kind:    render.InstallerCodexMarketplace,
+		Desired: []CachedExtensionActivation{desired},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := transaction.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{
+		"add-marketplace:koment-dev:" + wrapped,
+		"install-plugin:koment@koment-dev",
+	}
+	if !reflect.DeepEqual(cli.calls, expected) {
+		t.Fatalf("unexpected operations: %#v", cli.calls)
+	}
+}
+
 func TestNativeInstallerRejectsUserMarketplaceCollision(t *testing.T) {
 	dataRoot := t.TempDir()
 	desiredCache := makeNativeInstallerCache(t, dataRoot, strings.Repeat("c", 64))

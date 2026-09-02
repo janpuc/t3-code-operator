@@ -38,6 +38,72 @@ url = "https://example.test/rg.tar.gz"
 	}
 }
 
+func TestParseMiseLockArtifactNormalisesTheVersionPrefix(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("c", 64)
+	lockfile := []byte(`lockfile_version = 1
+
+[[tools."github:koment-dev/koment"]]
+version = "3.2.0"
+backend = "github:koment-dev/koment"
+specifiers = ["v3.2.0"]
+
+[tools."github:koment-dev/koment"."platforms.linux-x64"]
+checksum = "` + digest + `"
+url = "https://example.test/koment.tar.gz"
+`)
+	artifact, err := parseMiseLockArtifact(
+		lockfile,
+		"github:koment-dev/koment",
+		"v3.2.0",
+		"linux-x64",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if artifact.SHA256 != digest {
+		t.Fatalf("unexpected artifact: %#v", artifact)
+	}
+	if _, err := parseMiseLockArtifact(
+		lockfile,
+		"github:koment-dev/koment",
+		"v3.3.0",
+		"linux-x64",
+	); err == nil || !strings.Contains(err.Error(), "identity does not match") {
+		t.Fatalf("a different version was accepted: %v", err)
+	}
+}
+
+func TestMiseToolResolverReportsTheResolutionFailureCause(t *testing.T) {
+	directory := t.TempDir()
+	binary := filepath.Join(directory, "mise")
+	script := `#!/bin/sh
+cat > mise.lock <<'LOCK'
+lockfile_version = 1
+
+[[tools."github:koment-dev/koment"]]
+version = "9.9.9"
+backend = "github:koment-dev/koment"
+specifiers = ["9.9.9"]
+
+[tools."github:koment-dev/koment"."platforms.linux-x64"]
+checksum = "sha256:` + strings.Repeat("d", 64) + `"
+url = "https://example.test/koment.tar.gz"
+LOCK
+`
+	if err := os.WriteFile(binary, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	resolver := newTestMiseToolResolver(t, binary)
+	_, err := resolver.Resolve(context.Background(), []t3v1alpha1.ToolSpec{{
+		Name:    "koment",
+		Backend: "github:koment-dev/koment",
+		Version: "3.2.0",
+	}})
+	if err == nil || !strings.Contains(err.Error(), "identity does not match") {
+		t.Fatalf("the resolution failure cause was not reported: %v", err)
+	}
+}
+
 func TestMiseToolResolverAcceptsExplicitArtifactsWithoutMise(t *testing.T) {
 	resolver := newTestMiseToolResolver(t, filepath.Join(t.TempDir(), "missing-mise"))
 	tools, err := resolver.Resolve(context.Background(), []t3v1alpha1.ToolSpec{{

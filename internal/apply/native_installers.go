@@ -175,6 +175,10 @@ func (runner *nativeMarketplaceInstallerRunner) collectSpecs(
 		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			return nil, fmt.Errorf("Extension %s/%s cache path is not a directory", activation.InstanceID, activation.Name)
 		}
+		cachePath, err = descendSingleRootDirectory(cachePath)
+		if err != nil {
+			return nil, fmt.Errorf("inspect Extension %s/%s cache: %w", activation.InstanceID, activation.Name, err)
+		}
 		key := nativeMarketplaceKey{instanceID: activation.InstanceID, marketplace: installer.Marketplace}
 		spec := result[key]
 		if spec == nil {
@@ -190,6 +194,17 @@ func (runner *nativeMarketplaceInstallerRunner) collectSpecs(
 		spec.plugins[pluginID] = struct{}{}
 	}
 	return result, nil
+}
+
+func descendSingleRootDirectory(path string) (string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return "", err
+	}
+	if len(entries) != 1 || !entries[0].Type().IsDir() {
+		return path, nil
+	}
+	return filepath.Join(path, entries[0].Name()), nil
 }
 
 func validateNativeInstallerSource(kind render.InstallerKind, source render.ExtensionSource) error {

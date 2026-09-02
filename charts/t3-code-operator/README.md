@@ -9,7 +9,7 @@ helm install t3-code-operator \
   oci://ghcr.io/janpuc/charts/t3-code-operator \
   --namespace t3-code-system \
   --create-namespace \
-  --version 0.1.5
+  --version 0.1.6
 ```
 
 Set both operator and Workstation image digests in production values. Release
