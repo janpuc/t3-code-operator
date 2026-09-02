@@ -136,7 +136,10 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           helm package charts/t3-code-operator --destination dist
-          sha256sum "dist/t3-code-operator-$RELEASE_VERSION.tgz" >"dist/t3-code-operator-$RELEASE_VERSION.tgz.sha256"
+          (
+            cd dist
+            sha256sum "t3-code-operator-$RELEASE_VERSION.tgz" >"t3-code-operator-$RELEASE_VERSION.tgz.sha256"
+          )
           printf '%s' "$GHCR_PASSWORD" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           helm push "dist/t3-code-operator-$RELEASE_VERSION.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts" 2>&1 | tee dist/helm-push.txt
           digest="$(awk '$1 == "Digest:" && $2 ~ /^sha256:/ { print $2; exit }' dist/helm-push.txt)"

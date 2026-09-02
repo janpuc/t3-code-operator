@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -138,7 +139,7 @@ func (fetcher *GitExtensionFetcher) Fetch(
 			environment = append(environment,
 				"GIT_CONFIG_COUNT=1",
 				"GIT_CONFIG_KEY_0=http."+repositoryURL+".extraHeader",
-				"GIT_CONFIG_VALUE_0=Authorization: Bearer "+credential.Value,
+				"GIT_CONFIG_VALUE_0=Authorization: "+gitHTTPSAuthorization(parsedURL.Hostname(), credential.Value),
 			)
 		case "ssh":
 			agent, err = startExtensionSSHAgent(ctx, repository, credential.Value)
@@ -185,6 +186,14 @@ func (fetcher *GitExtensionFetcher) Fetch(
 		return err
 	}
 	return nil
+}
+
+func gitHTTPSAuthorization(hostname, credential string) string {
+	if strings.EqualFold(hostname, "github.com") {
+		encoded := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + credential))
+		return "Basic " + encoded
+	}
+	return "Bearer " + credential
 }
 
 func (fetcher *GitExtensionFetcher) prepareSSHCommand() (string, error) {
@@ -358,10 +367,7 @@ func outputExtensionCommand(
 }
 
 func extensionCommandError(commandErr error, output string, credential *SecretValue) error {
-	message := strings.TrimSpace(output)
-	if credential != nil && credential.Value != "" {
-		message = strings.ReplaceAll(message, credential.Value, "[redacted]")
-	}
+	message := redactExtensionCredential(strings.TrimSpace(output), credential)
 	if message == "" {
 		return sanitizeExtensionError(commandErr, credential)
 	}
@@ -372,7 +378,16 @@ func sanitizeExtensionError(err error, credential *SecretValue) error {
 	if err == nil || credential == nil || credential.Value == "" {
 		return err
 	}
-	return errors.New(strings.ReplaceAll(err.Error(), credential.Value, "[redacted]"))
+	return errors.New(redactExtensionCredential(err.Error(), credential))
+}
+
+func redactExtensionCredential(value string, credential *SecretValue) string {
+	if credential == nil || credential.Value == "" {
+		return value
+	}
+	value = strings.ReplaceAll(value, credential.Value, "[redacted]")
+	githubBasic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + credential.Value))
+	return strings.ReplaceAll(value, githubBasic, "[redacted]")
 }
 
 type boundedExtensionBuffer struct {

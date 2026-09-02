@@ -81,6 +81,31 @@ func TestGitExtensionFetcherRedactsCredentialFromCommandFailure(t *testing.T) {
 	}
 }
 
+func TestGitExtensionFetcherRedactsDerivedGitHubCredentialFromCommandFailure(t *testing.T) {
+	root := t.TempDir()
+	gitBinary := filepath.Join(root, "failing-git")
+	if err := os.WriteFile(
+		gitBinary,
+		[]byte("#!/bin/sh\nprintf '%s' \"$GIT_CONFIG_VALUE_0\" >&2\nexit 1\n"),
+		0o700,
+	); err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(root, "content")
+	if err := os.Mkdir(destination, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fetcher := &GitExtensionFetcher{GitBinary: gitBinary}
+	credential := &SecretValue{Value: "git-secret-canary", Version: "1"}
+	source := testGitSource(nil)
+	source.Git.URL = "https://github.com/example/skills.git"
+	err := fetcher.Fetch(context.Background(), source, credential, destination)
+	encoded := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + credential.Value))
+	if err == nil || strings.Contains(err.Error(), credential.Value) || strings.Contains(err.Error(), encoded) {
+		t.Fatalf("Git command error exposed its derived credential: %v", err)
+	}
+}
+
 func TestGitHubReleaseFetcherChecksDigestAndStripsRedirectCredential(t *testing.T) {
 	archive := testTarGzip(t, map[string]string{"plugin/SKILL.md": "release skill\n"})
 	digest := sha256.Sum256(archive)
@@ -307,6 +332,17 @@ func TestGitCredentialValidationAllowsMultilineSSHKeys(t *testing.T) {
 		if err := validateGitExtensionCredential("https", value); err == nil {
 			t.Fatalf("unsafe HTTPS credential %q passed validation", value)
 		}
+	}
+}
+
+func TestGitHTTPSAuthorizationUsesGitHubBasicAuthentication(t *testing.T) {
+	credential := "git-secret-canary"
+	wantGitHub := "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+credential))
+	if got := gitHTTPSAuthorization("github.com", credential); got != wantGitHub {
+		t.Fatalf("GitHub credential used the wrong authorization scheme: %q", got)
+	}
+	if got := gitHTTPSAuthorization("git.example.com", credential); got != "Bearer "+credential {
+		t.Fatalf("generic Git credential changed authorization scheme: %q", got)
 	}
 }
 
