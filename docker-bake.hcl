@@ -54,7 +54,7 @@ target "stable" {
   ] : ["${RUNTIME_IMAGE_REPOSITORY}:${STABLE_TAG}"]
   args = {
     T3_CHANNEL = "stable"
-    T3_VERSION = "0.0.34"
+    T3_VERSION = "0.0.38"
   }
 }
 
@@ -63,7 +63,7 @@ target "nightly" {
   tags     = ["${RUNTIME_IMAGE_REPOSITORY}:${NIGHTLY_TAG}"]
   args = {
     T3_CHANNEL = "nightly"
-    T3_VERSION = "0.0.36-nightly.20260828.1209"
+    T3_VERSION = "0.0.39-nightly.20260904.1276"
   }
 }
 

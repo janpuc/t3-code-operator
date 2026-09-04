@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NZ32BPT92EFR96WAV1S4E7
+  created: "2026-09-04T10:23:06Z"
+spec:
+  target:
+    file: .koment/policy.yaml
+  type: gotcha
+  title: koment walks ignored trees, so local tool clones must be excluded here
+  body: |-
+    `.delta/` is not part of the repository: it holds bare clones
+    (`clones/<id>/t3-code-operator.git`) and worktrees that a local tool creates
+    beside the checkout, and `.gitignore` keeps them out of commits. koment
+    3.2.0's comment walker does not consult `.gitignore`, so the sample git
+    hooks inside those clones surfaced as 64 prohibited comments and failed
+    `koment comments check` on a tree whose tracked files were clean. Listing
+    the directory under vendoredPaths is the only exclusion the policy offers;
+    it is not vendored code, it is simply out of scope.
+  anchor:
+    scope: excerpt
+    excerpt: '      - .delta/**'
+    before: |2-
+            - '**/.cache/**'
+            - .koment/**
+            - '**/.koment/**'
+    after: |2-
+        agents:
+          adapters:
+            - agents
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+  git:
+    commit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc
+    path: .koment/policy.yaml
+    line: 41
+status:
+  lastSeenLine: 41
+  resolution: ok
+  resolvedAt: "2026-09-04T10:23:06Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

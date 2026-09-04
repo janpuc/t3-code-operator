@@ -5,3 +5,4 @@ testbin/
 cover.out
 node_modules/
 .DS_Store
+.delta/

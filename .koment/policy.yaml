@@ -38,6 +38,7 @@ spec:
       - '**/.cache/**'
       - .koment/**
       - '**/.koment/**'
+      - .delta/**
   agents:
     adapters:
       - agents

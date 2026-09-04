@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-		"@anthropic-ai/claude-code": "2.1.241",
-		"@openai/codex": "0.149.0",
-		"opencode-ai": "1.18.21",
-		"oxfmt": "0.64.0",
-		"t3": "0.0.34"
+		"@anthropic-ai/claude-code": "2.1.260",
+		"@openai/codex": "0.153.2",
+		"opencode-ai": "1.18.27",
+		"oxfmt": "0.66.0",
+		"t3": "0.0.38"
   }
 }

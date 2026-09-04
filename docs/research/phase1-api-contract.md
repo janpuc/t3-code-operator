@@ -4,13 +4,16 @@ Verified on 2026-08-27.
 
 ## Baseline
 
-- Go `1.26.7`
-- controller-runtime `0.24.1`
-- controller-tools `0.21.0`
-- Kubernetes API server `1.36.0`
+- Go `1.27.1`
+- controller-runtime `0.25.0`
+- controller-tools `0.22.0`
+- Kubernetes API server `1.37.0`
 
 The controller-runtime and controller-tools versions both use Kubernetes
-library version `0.36.0` and require Go `1.26`.
+library version `0.37.0` and require Go `1.26`. The original verification on
+2026-08-27 used Go `1.26.7`, controller-runtime `0.24.1`, controller-tools
+`0.21.0`, and API server `1.36.0`; the same checks were repeated on 2026-09-04
+after the upgrade.
 
 ## Executed checks
 
@@ -34,8 +37,8 @@ contracts:
 - Drain defaults become `WaitForIdle`, `30m`, and `Block`.
 - `/data` cannot use `EmptyDir` unless `disposable` is true.
 
-The test downloads fixed Kubernetes `1.36.0` envtest assets from the
-controller-tools `v0.21.0` release index. Normal unit tests do not download or
+The test downloads fixed Kubernetes `1.37.0` envtest assets from the
+controller-tools `v0.22.0` release index. Normal unit tests do not download or
 start an API server.
 
 ## Kind replay

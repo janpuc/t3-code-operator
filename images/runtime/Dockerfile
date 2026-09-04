@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1.7
 
-ARG GO_IMAGE=golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f6437930887c2f6a91ea242459e5514
-ARG NODE_IMAGE=node:24.10.0-bookworm-slim@sha256:b8d2197aff9129d16c801a3e3e1b2a873c4946480f5a310f38056df2268c38d9
+ARG GO_IMAGE=golang:1.27.1-bookworm@sha256:648f440f42a0958804efb24df176f806f9d353b41f1c0627f666428e40310f6b
+ARG NODE_IMAGE=node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e
 ARG DEBIAN_IMAGE=debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
 FROM ${GO_IMAGE} AS go-builder
 ARG TARGETOS=linux
 ARG TARGETARCH
-ARG T3_VERSION=0.0.34
+ARG T3_VERSION=0.0.38
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -26,7 +26,7 @@ RUN CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" \
 
 FROM ${NODE_IMAGE} AS npm-builder
 ARG T3_CHANNEL=stable
-ARG T3_VERSION=0.0.34
+ARG T3_VERSION=0.0.38
 WORKDIR /opt/t3-runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential ca-certificates curl python3 && \
@@ -43,13 +43,13 @@ RUN npm ci --ignore-scripts --no-audit --no-fund && \
 
 FROM ${NODE_IMAGE} AS baseline-builder
 ARG TARGETARCH
-ARG MISE_VERSION=2026.8.12
+ARG MISE_VERSION=2026.9.1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl jq xz-utils unzip && \
     rm -rf /var/lib/apt/lists/*
 RUN case "$TARGETARCH" in \
-      amd64) mise_arch=x64; mise_sha=f2092b1e67f0abc8803d3be120dd2bc5b656dd99680ba3159f710e149da10d05 ;; \
-      arm64) mise_arch=arm64; mise_sha=071e2d16905360fa04762422a2a889692bb3a4d30f27650de50bc1ac0564840b ;; \
+      amd64) mise_arch=x64; mise_sha=c98423c8470d6dc416d9f7036d0646d8ef5ae92ad9186907f8fcc84cbe7db4ea ;; \
+      arm64) mise_arch=arm64; mise_sha=0ef0a778eaa8599f3e90a8a0979c9fc3f79922cafb5fa6d39f366d974da33bba ;; \
       *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
     curl -fsSL --retry 3 -o /usr/local/bin/mise \
@@ -103,13 +103,13 @@ CMD ["/usr/local/bin/t3-smbd"]
 FROM ${NODE_IMAGE} AS runtime
 ARG TARGETARCH
 ARG T3_CHANNEL=stable
-ARG T3_VERSION=0.0.34
-ARG CODEX_VERSION=0.149.0
-ARG CLAUDE_VERSION=2.1.241
-ARG CURSOR_VERSION=2026.08.11-e8db854
-ARG GROK_VERSION=1.0.5
-ARG OPENCODE_VERSION=1.18.21
-ARG GH_VERSION=2.98.0
+ARG T3_VERSION=0.0.38
+ARG CODEX_VERSION=0.153.2
+ARG CLAUDE_VERSION=2.1.260
+ARG CURSOR_VERSION=2026.09.02-c22c1a3
+ARG GROK_VERSION=1.0.7
+ARG OPENCODE_VERSION=1.18.27
+ARG GH_VERSION=2.100.0
 ARG VCS_REF=unknown
 ARG BUILD_DATE=unknown
 
@@ -131,8 +131,8 @@ COPY --from=baseline-builder /opt/mise /opt/mise
 COPY --from=baseline-builder /opt/t3-code-baseline /opt/t3-code-baseline
 
 RUN case "$TARGETARCH" in \
-      amd64) cursor_arch=x64; cursor_sha=bfff4bf6f4e9dd30c1d0ef0a70b6077b074015dd2948e4c50685d53afdcfce5a; grok_arch=x86_64; grok_sha=9ba87444e1819e8f6104adbbf4676a870c204380aa5c3e1c38a926c4ea677238 ;; \
-      arm64) cursor_arch=arm64; cursor_sha=ea13f92e295f523a99ce8d8f57d6894d21e5d1e2d030ffad718ccd5955ca2eed; grok_arch=aarch64; grok_sha=1c1fe67d7c35497fb09f44a451f57acc3787add4c9aea2c56f5c7c75dc5ffcf1 ;; \
+      amd64) cursor_arch=x64; cursor_sha=b73b59854762535c0fc20d7ccc51c3b5a356a851491088d60a362be48750f53c; grok_arch=x86_64; grok_sha=4ebb2a74a616f6b136fb50faa9794c715bfb14e4691c98e2a3c1109b4eb02623 ;; \
+      arm64) cursor_arch=arm64; cursor_sha=fb7bc635be6172ebcf68f907fd9217e3614da51916455c6d7fdb66690997884c; grok_arch=aarch64; grok_sha=1bff7a2ed02871a20442d1c71fcf1e89ac800e75a0dcd1dd8e73fb725ac1dc00 ;; \
       *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
     curl -fsSL --retry 3 -o /tmp/cursor.tar.gz \

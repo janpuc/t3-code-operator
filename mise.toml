@@ -3,10 +3,12 @@ experimental = true
 
 [tools]
 actionlint = "1.7.12"
-go = "1.26.7"
+go = "1.27.1"
 "github:kubernetes-sigs/kind" = "v0.33.0"
 just = "1.58.0"
-kubectl = "1.36.3"
+kubectl = "1.37.0"
 helm = "4.2.4"
 kubeconform = "0.8.0"
-ripgrep = "14.1.1"
+ripgrep = "15.2.0"
+yq = "4.53.6"
+"github:koment-dev/koment" = "v3.2.0"

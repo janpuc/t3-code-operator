@@ -24,7 +24,7 @@ const (
 	MaxReportBytes   = 64 * 1024
 )
 
-var UpstreamT3Version = "0.0.34"
+var UpstreamT3Version = "0.0.38"
 
 var (
 	reportReasonPattern   = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]{0,127}$`)

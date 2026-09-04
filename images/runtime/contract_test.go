@@ -26,8 +26,8 @@ type runtimePackageLock struct {
 
 func TestRuntimeNPMLocksPinEveryDirectPackage(t *testing.T) {
 	channels := map[string]string{
-		"stable":  "0.0.34",
-		"nightly": "0.0.36-nightly.20260828.1209",
+		"stable":  "0.0.38",
+		"nightly": "0.0.39-nightly.20260904.1276",
 	}
 	for channel, expectedT3 := range channels {
 		t.Run(channel, func(t *testing.T) {
@@ -84,7 +84,7 @@ func TestBaselineMiseLockPinsBothImageArchitectures(t *testing.T) {
 			t.Fatalf("baseline tool %s has %d lock entries", name, len(entries))
 		}
 		lockedVersion, _ := entries[0]["version"].(string)
-		if strings.TrimPrefix(version, "v") != lockedVersion {
+		if strings.TrimPrefix(version, "v") != strings.TrimPrefix(lockedVersion, "v") {
 			t.Fatalf("baseline tool %s lock version is %q, want %q", name, lockedVersion, version)
 		}
 		for _, platform := range []string{"linux-arm64", "linux-x64"} {
@@ -109,21 +109,21 @@ func TestDockerfilePinsSourcesAndRunsAsNonRoot(t *testing.T) {
 	}
 	dockerfile := string(raw)
 	for _, expected := range []string{
-		"ARG GO_IMAGE=golang:1.26.7-bookworm@sha256:",
-		"ARG NODE_IMAGE=node:24.10.0-bookworm-slim@sha256:",
+		"ARG GO_IMAGE=golang:1.27.1-bookworm@sha256:",
+		"ARG NODE_IMAGE=node:24.20.0-bookworm-slim@sha256:",
 		"ARG DEBIAN_IMAGE=debian:bookworm-slim@sha256:",
 		"FROM ${DEBIAN_IMAGE} AS operator",
 		"FROM ${DEBIAN_IMAGE} AS smbd",
 		"FROM ${NODE_IMAGE} AS runtime",
 		"COPY --from=go-builder /out/t3-code-operator /usr/local/bin/t3-code-operator",
 		"COPY --from=baseline-builder /usr/local/bin/mise /usr/local/bin/mise",
-		"ARG T3_VERSION=0.0.34",
-		"ARG CODEX_VERSION=0.149.0",
-		"ARG CLAUDE_VERSION=2.1.241",
-		"ARG CURSOR_VERSION=2026.08.11-e8db854",
-		"ARG GROK_VERSION=1.0.5",
-		"ARG OPENCODE_VERSION=1.18.21",
-		"ARG GH_VERSION=2.98.0",
+		"ARG T3_VERSION=0.0.38",
+		"ARG CODEX_VERSION=0.153.2",
+		"ARG CLAUDE_VERSION=2.1.260",
+		"ARG CURSOR_VERSION=2026.09.02-c22c1a3",
+		"ARG GROK_VERSION=1.0.7",
+		"ARG OPENCODE_VERSION=1.18.27",
+		"ARG GH_VERSION=2.100.0",
 		"UpstreamT3Version=${T3_VERSION}",
 		"ln -sfn /data/t3-coded/machine-info /etc/machine-info",
 		"XDG_CONFIG_HOME=/data/home/.config",
