@@ -66,6 +66,19 @@ func TestWorkloadResourcesApplyOpinionatedDefaults(t *testing.T) {
 	}
 }
 
+func TestStorageTypeIsInferredFromTheBranch(t *testing.T) {
+	workstation := minimalWorkstation()
+	workstation.Spec.Storage.Data = t3v1alpha1.DataVolumeSource{ExistingClaim: &t3v1alpha1.ExistingClaimVolumeSource{Name: "retained"}}
+	workstation.Spec.Storage.Workspace = t3v1alpha1.WorkspaceVolumeSource{NFS: &t3v1alpha1.NFSVolumeSource{Server: "nas.internal", ExportPath: "/workspace"}}
+	storage := effectiveStorage(workstation)
+	if storage.Data.Type != t3v1alpha1.DataVolumeExistingClaim || storage.Workspace.Type != t3v1alpha1.WorkspaceVolumeNFS {
+		t.Fatalf("storage types were not inferred from their branches: %#v", storage)
+	}
+	if storage.Data.ClaimTemplate != nil {
+		t.Fatalf("an existing claim received a claim template: %#v", storage.Data)
+	}
+}
+
 func TestWorkloadResourcesPreferTheWorkstationImage(t *testing.T) {
 	workstation := minimalWorkstation()
 	workstation.Spec.Image = "registry.example/custom@sha256:" + strings.Repeat("e", 64)

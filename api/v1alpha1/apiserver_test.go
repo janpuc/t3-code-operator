@@ -101,8 +101,8 @@ func assertMinimalWorkstationIsDefaulted(t *testing.T, ctx context.Context, apiC
 	if err := apiClient.Get(ctx, client.ObjectKeyFromObject(workstation), persisted); err != nil {
 		t.Fatal(err)
 	}
-	if persisted.Spec.Storage.Data.Type != DataVolumeClaimTemplate || persisted.Spec.Storage.Workspace.Type != WorkspaceVolumeClaimTemplate {
-		t.Fatalf("storage defaults were not applied: %#v", persisted.Spec.Storage)
+	if persisted.Spec.Storage.Data.Type != "" || persisted.Spec.Storage.Data.ClaimTemplate != nil {
+		t.Fatalf("storage type must stay inferred, not persisted: %#v", persisted.Spec.Storage)
 	}
 	if persisted.Spec.Drain == nil || persisted.Spec.Drain.Policy != DrainPolicyWaitForIdle {
 		t.Fatalf("drain defaults were not applied: %#v", persisted.Spec.Drain)
@@ -112,6 +112,32 @@ func assertMinimalWorkstationIsDefaulted(t *testing.T, ctx context.Context, apiC
 	}
 	if persisted.Spec.Providers["grok"].Enabled {
 		t.Fatal("an explicit enabled=false provider was persisted as enabled")
+	}
+
+	inferred := &Workstation{
+		ObjectMeta: metav1.ObjectMeta{Name: "inferred-storage", Namespace: namespace},
+		Spec: WorkstationSpec{
+			Providers: map[string]ProviderSpec{"codex": {Enabled: true}},
+			Storage: WorkstationStorage{
+				Data:      DataVolumeSource{ExistingClaim: &ExistingClaimVolumeSource{Name: "t3-data"}},
+				Workspace: WorkspaceVolumeSource{NFS: &NFSVolumeSource{Server: "nas.internal", ExportPath: "/workspace"}},
+			},
+		},
+	}
+	if err := apiClient.Create(ctx, inferred); err != nil {
+		t.Fatalf("storage branches without an explicit type were rejected: %v", err)
+	}
+	mismatched := &Workstation{
+		ObjectMeta: metav1.ObjectMeta{Name: "mismatched-storage", Namespace: namespace},
+		Spec: WorkstationSpec{
+			Providers: map[string]ProviderSpec{"codex": {Enabled: true}},
+			Storage: WorkstationStorage{
+				Data: DataVolumeSource{Type: DataVolumeClaimTemplate, ExistingClaim: &ExistingClaimVolumeSource{Name: "t3-data"}},
+			},
+		},
+	}
+	if err := apiClient.Create(ctx, mismatched); err == nil || !apierrors.IsInvalid(err) {
+		t.Fatalf("a storage branch that contradicts its type was accepted: %v", err)
 	}
 
 	shared := &Workstation{

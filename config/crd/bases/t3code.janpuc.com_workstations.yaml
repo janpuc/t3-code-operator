@@ -478,7 +478,6 @@ spec:
                         - name
                         type: object
                       type:
-                        default: ClaimTemplate
                         enum:
                         - ExistingClaim
                         - ClaimTemplate
@@ -652,7 +651,6 @@ spec:
                         - server
                         type: object
                       type:
-                        default: ClaimTemplate
                         enum:
                         - ExistingClaim
                         - ClaimTemplate

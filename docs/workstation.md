@@ -105,7 +105,9 @@ spec:
 | `workspace` | `ClaimTemplate` | 50Gi | `ExistingClaim`, `NFS`, `EmptyDir` |
 
 A `claimTemplate` without `accessModes` gets `ReadWriteOnce`; without a storage
-request it gets the default size. `type` is inferred from the branch you set.
+request it gets the default size. `type` is inferred from the branch you set
+and only needs spelling out when no branch is present, which is never
+required: an empty volume means a defaulted `ClaimTemplate`.
 
 ## SMB workspace sharing
 

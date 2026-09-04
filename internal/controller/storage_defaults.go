@@ -17,18 +17,42 @@ const (
 func effectiveStorage(workstation *t3v1alpha1.Workstation) t3v1alpha1.WorkstationStorage {
 	storage := *workstation.Spec.Storage.DeepCopy()
 	if storage.Data.Type == "" {
-		storage.Data.Type = t3v1alpha1.DataVolumeClaimTemplate
+		storage.Data.Type = inferDataVolumeType(storage.Data)
 	}
 	if storage.Data.Type == t3v1alpha1.DataVolumeClaimTemplate {
 		storage.Data.ClaimTemplate = defaultedClaimTemplate(storage.Data.ClaimTemplate, defaultDataClaimSize)
 	}
 	if storage.Workspace.Type == "" {
-		storage.Workspace.Type = t3v1alpha1.WorkspaceVolumeClaimTemplate
+		storage.Workspace.Type = inferWorkspaceVolumeType(storage.Workspace)
 	}
 	if storage.Workspace.Type == t3v1alpha1.WorkspaceVolumeClaimTemplate {
 		storage.Workspace.ClaimTemplate = defaultedClaimTemplate(storage.Workspace.ClaimTemplate, defaultWorkspaceClaimSize)
 	}
 	return storage
+}
+
+func inferDataVolumeType(source t3v1alpha1.DataVolumeSource) t3v1alpha1.DataVolumeType {
+	switch {
+	case source.ExistingClaim != nil:
+		return t3v1alpha1.DataVolumeExistingClaim
+	case source.EmptyDir != nil:
+		return t3v1alpha1.DataVolumeEmptyDir
+	default:
+		return t3v1alpha1.DataVolumeClaimTemplate
+	}
+}
+
+func inferWorkspaceVolumeType(source t3v1alpha1.WorkspaceVolumeSource) t3v1alpha1.WorkspaceVolumeType {
+	switch {
+	case source.ExistingClaim != nil:
+		return t3v1alpha1.WorkspaceVolumeExistingClaim
+	case source.NFS != nil:
+		return t3v1alpha1.WorkspaceVolumeNFS
+	case source.EmptyDir != nil:
+		return t3v1alpha1.WorkspaceVolumeEmptyDir
+	default:
+		return t3v1alpha1.WorkspaceVolumeClaimTemplate
+	}
 }
 
 func defaultedClaimTemplate(template *t3v1alpha1.ClaimTemplateVolumeSource, size string) *t3v1alpha1.ClaimTemplateVolumeSource {
