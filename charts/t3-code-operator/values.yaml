@@ -30,6 +30,11 @@ smb:
     tag: 0.1.7
     digest: ""
 
+workstation:
+  image:
+    repository: ghcr.io/janpuc/t3-code-runtime
+    digest: ""
+
 serviceAccount:
   create: true
   name: ""

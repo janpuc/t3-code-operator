@@ -26,6 +26,9 @@ func normalizeMCPServers(namespace string, harness Harness) ([]normalizedMCPServ
 		if server.Name == "" {
 			return nil, validationError(fieldPath+".name", "is required")
 		}
+		if server.Transport == "" {
+			return nil, validationError(fieldPath+".transport", "is required when config has neither url nor command")
+		}
 		if _, exists := names[server.Name]; exists {
 			return nil, validationError(fieldPath+".name", "duplicates MCP server "+server.Name)
 		}

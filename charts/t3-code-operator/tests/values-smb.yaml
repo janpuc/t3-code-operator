@@ -10,6 +10,11 @@ smb:
     tag: ""
     digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
+workstation:
+  image:
+    repository: ghcr.io/janpuc/t3-code-runtime
+    digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+
 workstations:
   - name: nvme
     spec:

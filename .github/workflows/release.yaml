@@ -25,14 +25,14 @@ jobs:
       build_date: ${{ steps.release.outputs.build_date }}
     steps:
       - name: Check out the repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install the pinned release tools
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          version: 2026.8.12
+          version: 2026.9.1
           cache: true
 
       - name: Validate the release version
@@ -89,7 +89,7 @@ jobs:
       packages: write
     steps:
       - name: Check out the repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -143,14 +143,14 @@ jobs:
       packages: write
     steps:
       - name: Check out the repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install the pinned release tools
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
-          version: 2026.8.12
+          version: 2026.9.1
           cache: true
 
       - name: Log in to GHCR
@@ -207,9 +207,11 @@ jobs:
           GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ needs.verify.outputs.version }}
           CHART_REPOSITORY: ${{ needs.verify.outputs.chart_repository }}
+          RUNTIME_DIGEST: ${{ steps.images.outputs.runtime_digest }}
         run: |
           set -euo pipefail
           mkdir -p dist
+          yq -i '.workstation.image.digest = strenv(RUNTIME_DIGEST)' charts/t3-code-operator/values.yaml
           helm package charts/t3-code-operator --destination dist
           (
             cd dist

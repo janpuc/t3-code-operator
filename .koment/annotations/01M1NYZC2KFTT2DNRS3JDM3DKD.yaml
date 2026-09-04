@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NYZC2KFTT2DNRS3JDM3DKD
+  created: "2026-09-04T10:21:05Z"
+spec:
+  target:
+    file: api/v1alpha1/provider_types.go
+  type: why
+  title: Providers opt in with an explicit enabled and no empty-object shorthand
+  body: |-
+    `enabled` has no default on purpose, so `codex: {}` is rejected by the CRD
+    schema and a provider only exists in the rendered provider map after someone
+    wrote `enabled: true`. The first draft of this API treated an empty block as
+    opt-in; the maintainer rejected that as bad design because presence is too
+    easy to produce by accident (a stray key, a merge) and too hard to read as
+    intent. `enabled: false` keeps the block's settings and parks the instance,
+    which matches upstream t3, where a provider instance can be persisted and
+    disabled at the same time.
+  anchor:
+    scope: excerpt
+    excerpt: "\tEnabled bool `json:\"enabled\"`"
+    before: "\t// +kubebuilder:validation:Pattern=`^[A-Za-z][A-Za-z0-9_-]{0,63}$`\n\tDriver string `json:\"driver,omitempty\"`\n"
+    after: "\n\t// +kubebuilder:validation:MaxLength=128\n\tDisplayName string `json:\"displayName,omitempty\"`"
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+status:
+  lastSeenLine: 11
+  resolution: ok
+  resolvedAt: "2026-09-04T10:21:05Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

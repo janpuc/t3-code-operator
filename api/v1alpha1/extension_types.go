@@ -98,11 +98,10 @@ type ExtensionSource struct {
 type ExtensionSpec struct {
 	Source ExtensionSource `json:"source"`
 
-	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=64
 	// +listType=map
 	// +listMapKey=name
-	HarnessRefs []LocalObjectReference `json:"harnessRefs"`
+	HarnessRefs []LocalObjectReference `json:"harnessRefs,omitempty"`
 }
 
 type ExtensionStatus struct {

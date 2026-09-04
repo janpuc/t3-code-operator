@@ -51,8 +51,11 @@ func (reconciler *HarnessReconciler) Reconcile(ctx context.Context, request ctrl
 			return ctrl.Result{}, err
 		}
 	}
-	resolved := convertHarness(harness.Namespace, harness)
-	support, validationErr := render.ValidateHarness(harness.Namespace, resolved)
+	resolved, validationErr := convertHarness(harness.Namespace, harness)
+	var support render.SupportLevel
+	if validationErr == nil {
+		support, validationErr = render.ValidateHarness(harness.Namespace, resolved)
+	}
 	attachments, attachmentsReady, err := reconciler.workstationAttachments(ctx, harness)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -63,7 +66,7 @@ func (reconciler *HarnessReconciler) Reconcile(ctx context.Context, request ctrl
 	harness.Status.DesiredRevision, harness.Status.LiveRevision = aggregateAttachmentRevisions(attachments)
 	if validationErr != nil {
 		harness.Status.AdapterSupport = t3v1alpha1.AdapterUnsupported
-		setCondition(&harness.Status.Conditions, conditionResolved, metav1.ConditionFalse, "ValidationFailed", "The Harness configuration is not supported.", harness.Generation)
+		setCondition(&harness.Status.Conditions, conditionResolved, metav1.ConditionFalse, "ValidationFailed", resolutionFailureMessage(validationErr), harness.Generation)
 		setCondition(&harness.Status.Conditions, conditionReady, metav1.ConditionFalse, "ValidationFailed", "The Harness is not ready.", harness.Generation)
 	} else {
 		harness.Status.AdapterSupport = adapterSupportLevel(support)
@@ -173,9 +176,21 @@ func (reconciler *HarnessReconciler) workstationAttachments(
 	ctx context.Context,
 	harness *t3v1alpha1.Harness,
 ) ([]t3v1alpha1.AttachmentStatus, bool, error) {
-	attachments := make([]t3v1alpha1.AttachmentStatus, 0, len(harness.Spec.WorkstationRefs))
+	references := harness.Spec.WorkstationRefs
+	if len(references) == 0 {
+		var list t3v1alpha1.WorkstationList
+		if err := reconciler.List(ctx, &list, client.InNamespace(harness.Namespace)); err != nil {
+			return nil, false, err
+		}
+		for index := range list.Items {
+			if list.Items[index].DeletionTimestamp.IsZero() {
+				references = append(references, t3v1alpha1.LocalObjectReference{Name: list.Items[index].Name})
+			}
+		}
+	}
+	attachments := make([]t3v1alpha1.AttachmentStatus, 0, len(references))
 	ready := true
-	for _, reference := range harness.Spec.WorkstationRefs {
+	for _, reference := range uniqueLocalReferences(references) {
 		workstation := &t3v1alpha1.Workstation{}
 		err := reconciler.Get(ctx, client.ObjectKey{Namespace: harness.Namespace, Name: reference.Name}, workstation)
 		if apierrors.IsNotFound(err) {
@@ -232,40 +247,33 @@ func harnessAttachmentStatuses(
 	generation int64,
 	programs func(string) bool,
 ) ([]t3v1alpha1.AttachmentStatus, bool, error) {
-	attachments := make([]t3v1alpha1.AttachmentStatus, 0, len(references))
+	targets, err := listProviderTargets(ctx, kube, namespace)
+	if err != nil {
+		return nil, false, err
+	}
+	selected, missing := selectProviderTargets(targets, references, extension, programs)
+	attachments := make([]t3v1alpha1.AttachmentStatus, 0, len(selected)+len(missing))
 	ready := true
-	for _, reference := range references {
-		harness := &t3v1alpha1.Harness{}
-		err := kube.Get(ctx, client.ObjectKey{Namespace: namespace, Name: reference.Name}, harness)
-		if apierrors.IsNotFound(err) {
-			attachments = append(attachments, rejectedAttachment(reference.Name, "TargetNotFound", generation))
-			ready = false
-			continue
-		}
-		if err != nil {
-			return nil, false, err
-		}
-		allowed := attachmentsAllowed(harness.Spec.AttachmentPolicy.MCPServers)
+	for _, name := range missing {
+		attachments = append(attachments, rejectedAttachment(name, "TargetNotFound", generation))
+		ready = false
+	}
+	for _, target := range selected {
+		mode := target.policy.MCPServers
 		if extension {
-			allowed = attachmentsAllowed(harness.Spec.AttachmentPolicy.Extensions)
+			mode = target.policy.Extensions
 		}
-		if !allowed {
-			attachments = append(attachments, rejectedAttachment(reference.Name, "AttachmentNotAllowed", generation))
+		if !attachmentsAllowed(mode) {
+			attachments = append(attachments, rejectedAttachment(target.attachmentName, "AttachmentNotAllowed", generation))
 			ready = false
 			continue
 		}
-		if !programs(harness.Spec.Driver) {
-			attachments = append(attachments, rejectedAttachment(reference.Name, "DialectUnavailable", generation))
+		if !programs(target.driver) {
+			attachments = append(attachments, rejectedAttachment(target.attachmentName, "DialectUnavailable", generation))
 			ready = false
 			continue
 		}
-		attachment := acceptedAttachment(
-			reference.Name,
-			harness.Status.DesiredRevision,
-			harness.Status.LiveRevision,
-			conditionIsTrue(harness.Status.Conditions, conditionReady),
-			generation,
-		)
+		attachment := providerTargetAttachment(target, generation)
 		if !attachmentIsReady(attachment) {
 			ready = false
 		}
@@ -273,6 +281,25 @@ func harnessAttachmentStatuses(
 	}
 	sortAttachmentStatuses(attachments)
 	return attachments, ready, nil
+}
+
+func providerTargetAttachment(target providerTarget, generation int64) t3v1alpha1.AttachmentStatus {
+	if target.inline() {
+		return acceptedAttachment(
+			target.attachmentName,
+			target.workstation.Status.DesiredRevision,
+			target.workstation.Status.LiveRevision,
+			conditionIsTrue(target.workstation.Status.Conditions, conditionReady),
+			generation,
+		)
+	}
+	return acceptedAttachment(
+		target.attachmentName,
+		target.harness.Status.DesiredRevision,
+		target.harness.Status.LiveRevision,
+		conditionIsTrue(target.harness.Status.Conditions, conditionReady),
+		generation,
+	)
 }
 
 func rejectedAttachment(name, reason string, generation int64) t3v1alpha1.AttachmentStatus {
@@ -354,6 +381,7 @@ func (reconciler *ExtensionReconciler) SetupWithManager(manager ctrl.Manager) er
 	return ctrl.NewControllerManagedBy(manager).
 		For(&t3v1alpha1.Extension{}).
 		Watches(&t3v1alpha1.Harness{}, handler.EnqueueRequestsFromMapFunc(reconciler.requestsForHarness)).
+		Watches(&t3v1alpha1.Workstation{}, handler.EnqueueRequestsFromMapFunc(reconciler.requestsForWorkstation)).
 		Complete(reconciler)
 }
 
@@ -361,5 +389,6 @@ func (reconciler *MCPServerReconciler) SetupWithManager(manager ctrl.Manager) er
 	return ctrl.NewControllerManagedBy(manager).
 		For(&t3v1alpha1.MCPServer{}).
 		Watches(&t3v1alpha1.Harness{}, handler.EnqueueRequestsFromMapFunc(reconciler.requestsForHarness)).
+		Watches(&t3v1alpha1.Workstation{}, handler.EnqueueRequestsFromMapFunc(reconciler.requestsForWorkstation)).
 		Complete(reconciler)
 }

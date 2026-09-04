@@ -1,0 +1,40 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: t3-code-smb
+  namespace: agents
+type: Opaque
+stringData:
+  password: replace-with-a-long-random-password
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Workstation
+metadata:
+  name: t3-code
+  namespace: agents
+spec:
+  providers:
+    codex:
+      enabled: true
+  storage:
+    data:
+      claimTemplate:
+        spec:
+          storageClassName: fast-nvme
+          resources:
+            requests:
+              storage: 30Gi
+    workspace:
+      claimTemplate:
+        spec:
+          storageClassName: fast-nvme
+          resources:
+            requests:
+              storage: 200Gi
+  workspaceSharing:
+    smb:
+      service:
+        type: LoadBalancer
+        loadBalancerSourceRanges:
+          - 192.0.2.0/24

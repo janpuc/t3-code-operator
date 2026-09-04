@@ -364,10 +364,11 @@ func mergeClaimTemplateSpec(current, desired *corev1.PersistentVolumeClaim) (boo
 
 func validateExistingClaims(ctx context.Context, kube client.Client, workstation *t3v1alpha1.Workstation) error {
 	claimNames := make([]string, 0, 2)
-	if source := workstation.Spec.Storage.Data.ExistingClaim; source != nil {
+	storage := effectiveStorage(workstation)
+	if source := storage.Data.ExistingClaim; source != nil {
 		claimNames = append(claimNames, source.Name)
 	}
-	if source := workstation.Spec.Storage.Workspace.ExistingClaim; source != nil {
+	if source := storage.Workspace.ExistingClaim; source != nil {
 		claimNames = append(claimNames, source.Name)
 	}
 	for _, name := range claimNames {
@@ -494,10 +495,11 @@ func deleteManagedClaim(
 
 func currentStorageClaimNames(workstation *t3v1alpha1.Workstation, names ResourceNames) map[string]struct{} {
 	result := existingClaimNames(workstation)
-	if workstation.Spec.Storage.Data.Type == t3v1alpha1.DataVolumeClaimTemplate {
+	storage := effectiveStorage(workstation)
+	if storage.Data.Type == t3v1alpha1.DataVolumeClaimTemplate {
 		result[names.DataClaim] = struct{}{}
 	}
-	if workstation.Spec.Storage.Workspace.Type == t3v1alpha1.WorkspaceVolumeClaimTemplate {
+	if storage.Workspace.Type == t3v1alpha1.WorkspaceVolumeClaimTemplate {
 		result[names.WorkspaceClaim] = struct{}{}
 	}
 	return result
@@ -505,10 +507,11 @@ func currentStorageClaimNames(workstation *t3v1alpha1.Workstation, names Resourc
 
 func existingClaimNames(workstation *t3v1alpha1.Workstation) map[string]struct{} {
 	result := make(map[string]struct{}, 2)
-	if source := workstation.Spec.Storage.Data.ExistingClaim; source != nil {
+	storage := effectiveStorage(workstation)
+	if source := storage.Data.ExistingClaim; source != nil {
 		result[source.Name] = struct{}{}
 	}
-	if source := workstation.Spec.Storage.Workspace.ExistingClaim; source != nil {
+	if source := storage.Workspace.ExistingClaim; source != nil {
 		result[source.Name] = struct{}{}
 	}
 	return result

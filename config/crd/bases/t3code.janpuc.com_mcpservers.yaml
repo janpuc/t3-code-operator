@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: mcpservers.t3code.janpuc.com
 spec:
   group: t3code.janpuc.com
@@ -38,6 +38,22 @@ spec:
             type: object
           spec:
             properties:
+              bearerTokenSecretRef:
+                properties:
+                  key:
+                    maxLength: 253
+                    minLength: 1
+                    pattern: ^[-._A-Za-z0-9]+$
+                    type: string
+                  name:
+                    maxLength: 253
+                    minLength: 1
+                    pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                    type: string
+                required:
+                - key
+                - name
+                type: object
               config:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
@@ -96,7 +112,6 @@ spec:
                   - name
                   type: object
                 maxItems: 64
-                minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
@@ -149,14 +164,15 @@ spec:
                 maxLength: 64
                 minLength: 1
                 type: string
-            required:
-            - harnessRefs
-            - transport
             type: object
             x-kubernetes-validations:
             - message: header names must be unique when compared case-insensitively
               rule: '!has(self.headers) || self.headers.all(header, self.headers.exists_one(candidate,
                 candidate.name.lowerAscii() == header.name.lowerAscii()))'
+            - message: bearerTokenSecretRef and an Authorization header are mutually
+                exclusive
+              rule: '!has(self.bearerTokenSecretRef) || !has(self.headers) || !self.headers.exists(header,
+                header.name.lowerAscii() == ''authorization'')'
           status:
             properties:
               attachments:

@@ -23,14 +23,17 @@ type HTTPHeader struct {
 }
 
 // +kubebuilder:validation:XValidation:rule="!has(self.headers) || self.headers.all(header, self.headers.exists_one(candidate, candidate.name.lowerAscii() == header.name.lowerAscii()))",message="header names must be unique when compared case-insensitively"
+// +kubebuilder:validation:XValidation:rule="!has(self.bearerTokenSecretRef) || !has(self.headers) || !self.headers.exists(header, header.name.lowerAscii() == 'authorization')",message="bearerTokenSecretRef and an Authorization header are mutually exclusive"
 type MCPServerSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=64
-	Transport string `json:"transport"`
+	Transport string `json:"transport,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Type=object
 	Config *apiextensionsv1.JSON `json:"config,omitempty"`
+
+	BearerTokenSecretRef *SecretKeyReference `json:"bearerTokenSecretRef,omitempty"`
 
 	// +kubebuilder:validation:MaxItems=64
 	Headers []HTTPHeader `json:"headers,omitempty"`
@@ -40,11 +43,10 @@ type MCPServerSpec struct {
 	// +listMapKey=name
 	Environment []EnvironmentVariable `json:"environment,omitempty"`
 
-	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=64
 	// +listType=map
 	// +listMapKey=name
-	HarnessRefs []LocalObjectReference `json:"harnessRefs"`
+	HarnessRefs []LocalObjectReference `json:"harnessRefs,omitempty"`
 }
 
 type MCPServerStatus struct {

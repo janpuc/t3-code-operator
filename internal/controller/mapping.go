@@ -5,20 +5,24 @@ import (
 	"sort"
 
 	t3v1alpha1 "github.com/janpuc/t3-code-operator/api/v1alpha1"
+	"github.com/janpuc/t3-code-operator/internal/render"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func (reconciler *WorkstationReconciler) requestsForHarness(
-	_ context.Context,
+	ctx context.Context,
 	object client.Object,
 ) []reconcile.Request {
 	harness, ok := object.(*t3v1alpha1.Harness)
 	if !ok {
 		return nil
 	}
-	return requestsForReferences(harness.Namespace, harness.Spec.WorkstationRefs)
+	if len(harness.Spec.WorkstationRefs) != 0 {
+		return requestsForReferences(harness.Namespace, harness.Spec.WorkstationRefs)
+	}
+	return reconciler.requestsForAllWorkstations(ctx, harness.Namespace)
 }
 
 func (reconciler *WorkstationReconciler) requestsForExtension(
@@ -29,7 +33,10 @@ func (reconciler *WorkstationReconciler) requestsForExtension(
 	if !ok {
 		return nil
 	}
-	return reconciler.requestsForHarnessReferences(ctx, extension.Namespace, extension.Spec.HarnessRefs)
+	sourceType := render.ExtensionSourceType(extension.Spec.Source.Type)
+	return reconciler.requestsForAttachment(ctx, extension.Namespace, extension.Spec.HarnessRefs, true, func(driver string) bool {
+		return render.ProgramsExtensionSource(driver, sourceType)
+	})
 }
 
 func (reconciler *WorkstationReconciler) requestsForMCPServer(
@@ -40,25 +47,34 @@ func (reconciler *WorkstationReconciler) requestsForMCPServer(
 	if !ok {
 		return nil
 	}
-	return reconciler.requestsForHarnessReferences(ctx, server.Namespace, server.Spec.HarnessRefs)
+	return reconciler.requestsForAttachment(ctx, server.Namespace, server.Spec.HarnessRefs, false, render.ProgramsMCPServers)
 }
 
-func (reconciler *WorkstationReconciler) requestsForHarnessReferences(
+func (reconciler *WorkstationReconciler) requestsForAttachment(
 	ctx context.Context,
 	namespace string,
 	references []t3v1alpha1.LocalObjectReference,
+	extension bool,
+	programs func(string) bool,
 ) []reconcile.Request {
-	requests := make(map[types.NamespacedName]struct{})
-	for _, reference := range references {
-		harness := &t3v1alpha1.Harness{}
-		if err := reconciler.Get(ctx, types.NamespacedName{Namespace: namespace, Name: reference.Name}, harness); err != nil {
-			continue
-		}
-		for _, request := range requestsForReferences(namespace, harness.Spec.WorkstationRefs) {
-			requests[request.NamespacedName] = struct{}{}
-		}
+	targets, err := listProviderTargets(ctx, reconciler, namespace)
+	if err != nil {
+		return nil
 	}
-	return sortedRequests(requests)
+	selected, _ := selectProviderTargets(targets, references, extension, programs)
+	return requestsForNames(namespace, workstationNamesForTargets(selected))
+}
+
+func (reconciler *WorkstationReconciler) requestsForAllWorkstations(ctx context.Context, namespace string) []reconcile.Request {
+	list := &t3v1alpha1.WorkstationList{}
+	if err := reconciler.List(ctx, list, client.InNamespace(namespace)); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(list.Items))
+	for index := range list.Items {
+		names = append(names, list.Items[index].Name)
+	}
+	return requestsForNames(namespace, names)
 }
 
 func (reconciler *HarnessReconciler) requestsForWorkstation(
@@ -75,7 +91,7 @@ func (reconciler *HarnessReconciler) requestsForWorkstation(
 	}
 	requests := make(map[types.NamespacedName]struct{})
 	for index := range list.Items {
-		if referencesName(list.Items[index].Spec.WorkstationRefs, workstation.Name) {
+		if harnessAttachesToWorkstation(&list.Items[index], workstation.Name) {
 			requests[types.NamespacedName{Namespace: workstation.Namespace, Name: list.Items[index].Name}] = struct{}{}
 		}
 	}
@@ -96,11 +112,26 @@ func (reconciler *ExtensionReconciler) requestsForHarness(
 	}
 	requests := make(map[types.NamespacedName]struct{})
 	for index := range list.Items {
-		if referencesName(list.Items[index].Spec.HarnessRefs, harness.Name) {
+		if len(list.Items[index].Spec.HarnessRefs) == 0 || referencesName(list.Items[index].Spec.HarnessRefs, harness.Name) {
 			requests[types.NamespacedName{Namespace: harness.Namespace, Name: list.Items[index].Name}] = struct{}{}
 		}
 	}
 	return sortedRequests(requests)
+}
+
+func (reconciler *ExtensionReconciler) requestsForWorkstation(
+	ctx context.Context,
+	object client.Object,
+) []reconcile.Request {
+	list := &t3v1alpha1.ExtensionList{}
+	if err := reconciler.List(ctx, list, client.InNamespace(object.GetNamespace())); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(list.Items))
+	for index := range list.Items {
+		names = append(names, list.Items[index].Name)
+	}
+	return requestsForNames(object.GetNamespace(), names)
 }
 
 func (reconciler *MCPServerReconciler) requestsForHarness(
@@ -117,17 +148,40 @@ func (reconciler *MCPServerReconciler) requestsForHarness(
 	}
 	requests := make(map[types.NamespacedName]struct{})
 	for index := range list.Items {
-		if referencesName(list.Items[index].Spec.HarnessRefs, harness.Name) {
+		if len(list.Items[index].Spec.HarnessRefs) == 0 || referencesName(list.Items[index].Spec.HarnessRefs, harness.Name) {
 			requests[types.NamespacedName{Namespace: harness.Namespace, Name: list.Items[index].Name}] = struct{}{}
 		}
 	}
 	return sortedRequests(requests)
 }
 
+func (reconciler *MCPServerReconciler) requestsForWorkstation(
+	ctx context.Context,
+	object client.Object,
+) []reconcile.Request {
+	list := &t3v1alpha1.MCPServerList{}
+	if err := reconciler.List(ctx, list, client.InNamespace(object.GetNamespace())); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(list.Items))
+	for index := range list.Items {
+		names = append(names, list.Items[index].Name)
+	}
+	return requestsForNames(object.GetNamespace(), names)
+}
+
 func requestsForReferences(namespace string, references []t3v1alpha1.LocalObjectReference) []reconcile.Request {
-	requests := make(map[types.NamespacedName]struct{}, len(references))
+	names := make([]string, 0, len(references))
 	for _, reference := range references {
-		requests[types.NamespacedName{Namespace: namespace, Name: reference.Name}] = struct{}{}
+		names = append(names, reference.Name)
+	}
+	return requestsForNames(namespace, names)
+}
+
+func requestsForNames(namespace string, names []string) []reconcile.Request {
+	requests := make(map[types.NamespacedName]struct{}, len(names))
+	for _, name := range names {
+		requests[types.NamespacedName{Namespace: namespace, Name: name}] = struct{}{}
 	}
 	return sortedRequests(requests)
 }

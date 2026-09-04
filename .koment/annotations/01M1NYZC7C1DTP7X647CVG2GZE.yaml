@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NYZC7C1DTP7X647CVG2GZE
+  created: "2026-09-04T10:21:05Z"
+spec:
+  target:
+    file: internal/controller/resources.go
+  type: why
+  title: The runtime image defaults to the one built with the operator release
+  body: |-
+    The release workflow pins the runtime digest it just built into the
+    published chart's `workstation.image.digest`, and the chart passes it here
+    through `--default-workstation-image`. A Workstation that sets no image
+    therefore runs the runtime that was tested with this operator, and a chart
+    upgrade moves both together, which is the pairing the sidecar's
+    UpstreamT3Version contract assumes. An explicit `spec.image` still wins,
+    which is how a Workstation follows the nightly track. Neither value may be a
+    tag: the CRD pattern and the manager flag check both require a sha256
+    digest, because a moving tag would make the pod revision lie about what
+    runs.
+  anchor:
+    scope: excerpt
+    excerpt: func workstationImage(workstation *t3v1alpha1.Workstation, images WorkloadImages) (string, error) {
+    before: "\tWorkstation string\n}\n"
+    after: "\tif workstation.Spec.Image != \"\" {\n\t\treturn workstation.Spec.Image, nil\n\t}"
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+  git:
+    commit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc
+    path: internal/controller/resources.go
+    line: 100
+status:
+  lastSeenLine: 100
+  resolution: ok
+  resolvedAt: "2026-09-04T10:21:05Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

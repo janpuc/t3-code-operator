@@ -38,6 +38,7 @@ ConfigMap envelope below Kubernetes' object limit.
 | `opencode` | Supported | `/data/harnesses/<id>/opencode` | `opencode.jsonc`, `Merge` |
 | `cursor` | Alpha | Upstream provider config only | No unverified file dialect |
 | `grok` | Alpha | Upstream provider config only | No unverified file dialect |
+| `antigravity` | Alpha | Upstream provider config only | No unverified file dialect |
 
 Codex and Claude can have multiple instances. The renderer rejects multiple
 Cursor, Grok, or OpenCode instances until their state isolation has live proof.
@@ -112,8 +113,8 @@ select an installer.
 OpenCode release bundles remain unsupported. The renderer emits an
 `UnsupportedExtensionSource` warning and keeps other activations usable.
 
-Cursor and Grok emit `AlphaDialect`. They do not receive unverified MCP files or
-Extension activations.
+Cursor, Grok, and Antigravity emit `AlphaDialect`. They do not receive
+unverified MCP files or Extension activations.
 
 ## Safe apply
 

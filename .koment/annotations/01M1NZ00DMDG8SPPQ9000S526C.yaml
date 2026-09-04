@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NZ00DMDG8SPPQ9000S526C
+  created: "2026-09-04T10:21:26Z"
+spec:
+  target:
+    file: internal/controller/providers.go
+  type: why
+  title: No harnessRefs means every provider whose driver can program it
+  body: |-
+    Implicit attachment is what makes "add an MCP server" one file instead of a
+    file plus an edit to every provider. The empty-reference case filters by
+    dialect capability, so an alpha driver never receives a file it cannot use
+    and the child never reports a rejected attachment it did not ask for.
+    Explicit references keep the old behaviour on purpose: they match by name
+    only and let the status surface DialectUnavailable, because naming a
+    provider is a claim the user wants checked, while naming nothing is a
+    request for whatever works.
+  anchor:
+    scope: excerpt
+    excerpt: func attachmentSelects(
+    before: "\treturn len(harness.Spec.WorkstationRefs) == 0 || referencesName(harness.Spec.WorkstationRefs, workstationName)\n}\n"
+    after: "\treferences []t3v1alpha1.LocalObjectReference,\n\trefName string,\n\tdriver string,"
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+status:
+  lastSeenLine: 80
+  resolution: ok
+  resolvedAt: "2026-09-04T10:21:26Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NYZC92RR6DCK4CRTBTYMJP
+  created: "2026-09-04T10:21:05Z"
+spec:
+  target:
+    file: internal/controller/storage_defaults.go
+  type: why
+  title: Default claims are small, retained, and on the default class
+  body: |-
+    The sizes are the smallest that survived real use: `/data` holds harness
+    homes, the mise tool cache, and t3 session state, which stayed under 10Gi on
+    the production Workstation, and `/workspace` holds cloned repositories plus
+    their build caches, where 50Gi left headroom. Both default to `Retain`
+    because a Workstation is recreated far more often than its data should be,
+    and to no storage class so a fresh cluster's default provisioner works
+    without a value. The claim template inherits whichever of these the user
+    left out, so overriding one field never drops the others.
+  anchor:
+    scope: excerpt
+    excerpt: "const (\n\tdefaultDataClaimSize      = \"20Gi\"\n\tdefaultWorkspaceClaimSize = \"50Gi\""
+    before: "\t\"k8s.io/apimachinery/pkg/api/resource\"\n)\n"
+    after: "\tdefaultSMBPasswordKey     = \"password\"\n)\n"
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+status:
+  lastSeenLine: 11
+  resolution: ok
+  resolvedAt: "2026-09-04T10:21:05Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

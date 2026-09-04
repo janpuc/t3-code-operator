@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NYZCC8ARQ2SDYDJHN1Q3E8
+  created: "2026-09-04T10:21:05Z"
+spec:
+  target:
+    file: .github/workflows/release.yaml
+  type: why
+  title: The published chart pins the runtime digest that git cannot know
+  body: |-
+    The runtime digest only exists after the image job merges the per-platform
+    manifests, so a release-prepare commit cannot carry it and the verify job's
+    `git diff --exit-code` must keep passing on the untouched tree. Writing it
+    into values.yaml in the publish job, after that check and before `helm
+    package`, is what lets a Workstation without `spec.image` run the runtime
+    built for this operator version. The edit stays in the runner's checkout;
+    git keeps an empty digest so local `helm template` renders without a default
+    image, which the chart contract asserts.
+  anchor:
+    scope: excerpt
+    excerpt: '          yq -i ''.workstation.image.digest = strenv(RUNTIME_DIGEST)'' charts/t3-code-operator/values.yaml'
+    before: |2-
+              run: |
+                set -euo pipefail
+                mkdir -p dist
+    after: |2-
+                helm package charts/t3-code-operator --destination dist
+                (
+                  cd dist
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+  git:
+    commit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc
+    path: .github/workflows/release.yaml
+    line: 214
+status:
+  lastSeenLine: 214
+  resolution: ok
+  resolvedAt: "2026-09-04T10:21:05Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

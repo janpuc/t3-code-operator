@@ -12,8 +12,11 @@ helm install t3-code-operator \
   --version 0.1.7
 ```
 
-Set both operator and Workstation image digests in production values. Release
-notes list the immutable runtime image digest.
+Set the operator and SMB image digests in production values. The published
+chart pins `workstation.image.digest` to the runtime image built for the same
+release; the operator passes it as `--default-workstation-image`, so a
+Workstation without `spec.image` runs that runtime. Override the digest to
+follow another track, or set `spec.image` on individual Workstations.
 
 The chart can also render Workstation, Harness, Extension, and MCPServer objects. Each list is empty by default.
 
@@ -27,10 +30,12 @@ The chart includes NFS and PVC-with-SMB test values. The NFS values also set bot
 
 Use `spec.storage.workspace.type: ClaimTemplate` for a fast, operator-managed PVC. Add `spec.workspaceSharing.smb` to share that PVC.
 
-Create the password Secret before the Workstation:
+Create the password Secret before the Workstation. Without
+`passwordSecretRef` the operator reads `<workstation-name>-smb` under the key
+`password`:
 
 ```sh
-kubectl -n agents create secret generic nvme-workspace-smb \
+kubectl -n agents create secret generic t3-code-smb \
   --from-literal=password='replace-with-a-long-random-password'
 ```
 
@@ -42,7 +47,7 @@ See [`tests/values-smb.yaml`](tests/values-smb.yaml) for a complete chart exampl
 
 Helm installs files from `crds/` only during the first installation. Helm does not upgrade them. Apply compatible CRDs before an operator upgrade, or let Flux manage them separately.
 
-Always pin `Workstation.spec.image` by digest.
+When you set `Workstation.spec.image`, pin it by digest; the API rejects tags.
 
 Use the [idle migration procedure](../../docs/migration-from-helmrelease.md)
 when an existing workload already owns the retained data claim.

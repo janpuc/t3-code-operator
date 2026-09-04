@@ -68,11 +68,11 @@ type ClaimTemplateMetadata struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:rule="!has(self.spec.volumeMode) || self.spec.volumeMode == 'Filesystem'",message="ClaimTemplate volumeMode must be Filesystem"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec) || !has(self.spec.volumeMode) || self.spec.volumeMode == 'Filesystem'",message="ClaimTemplate volumeMode must be Filesystem"
 type ClaimTemplateVolumeSource struct {
 	Metadata ClaimTemplateMetadata `json:"metadata,omitempty"`
 
-	Spec corev1.PersistentVolumeClaimSpec `json:"spec"`
+	Spec corev1.PersistentVolumeClaimSpec `json:"spec,omitempty"`
 
 	// +kubebuilder:default:=Retain
 	RetentionPolicy ClaimRetentionPolicy `json:"retentionPolicy,omitempty"`
@@ -100,10 +100,11 @@ const (
 	DataVolumeEmptyDir      DataVolumeType = "EmptyDir"
 )
 
-// +kubebuilder:validation:XValidation:rule="(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate) ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) == 1",message="exactly one data volume configuration must be set"
-// +kubebuilder:validation:XValidation:rule="self.type == 'ExistingClaim' ? has(self.existingClaim) : self.type == 'ClaimTemplate' ? has(self.claimTemplate) : has(self.emptyDir)",message="data volume configuration must match type"
+// +kubebuilder:validation:XValidation:rule="(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate) ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) <= 1",message="at most one data volume configuration may be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.type) || self.type == 'ClaimTemplate' ? !has(self.existingClaim) && !has(self.emptyDir) : self.type == 'ExistingClaim' ? has(self.existingClaim) : has(self.emptyDir)",message="data volume configuration must match type"
 type DataVolumeSource struct {
-	Type DataVolumeType `json:"type"`
+	// +kubebuilder:default:=ClaimTemplate
+	Type DataVolumeType `json:"type,omitempty"`
 
 	ExistingClaim *ExistingClaimVolumeSource `json:"existingClaim,omitempty"`
 
@@ -122,10 +123,11 @@ const (
 	WorkspaceVolumeEmptyDir      WorkspaceVolumeType = "EmptyDir"
 )
 
-// +kubebuilder:validation:XValidation:rule="(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate) ? 1 : 0) + (has(self.nfs) ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) == 1",message="exactly one workspace volume configuration must be set"
-// +kubebuilder:validation:XValidation:rule="self.type == 'ExistingClaim' ? has(self.existingClaim) : self.type == 'ClaimTemplate' ? has(self.claimTemplate) : self.type == 'NFS' ? has(self.nfs) : has(self.emptyDir)",message="workspace volume configuration must match type"
+// +kubebuilder:validation:XValidation:rule="(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate) ? 1 : 0) + (has(self.nfs) ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) <= 1",message="at most one workspace volume configuration may be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.type) || self.type == 'ClaimTemplate' ? !has(self.existingClaim) && !has(self.nfs) && !has(self.emptyDir) : self.type == 'ExistingClaim' ? has(self.existingClaim) : self.type == 'NFS' ? has(self.nfs) : has(self.emptyDir)",message="workspace volume configuration must match type"
 type WorkspaceVolumeSource struct {
-	Type WorkspaceVolumeType `json:"type"`
+	// +kubebuilder:default:=ClaimTemplate
+	Type WorkspaceVolumeType `json:"type,omitempty"`
 
 	ExistingClaim *ExistingClaimVolumeSource `json:"existingClaim,omitempty"`
 
@@ -137,9 +139,11 @@ type WorkspaceVolumeSource struct {
 }
 
 type WorkstationStorage struct {
-	Data DataVolumeSource `json:"data"`
+	// +kubebuilder:default:={}
+	Data DataVolumeSource `json:"data,omitempty"`
 
-	Workspace WorkspaceVolumeSource `json:"workspace"`
+	// +kubebuilder:default:={}
+	Workspace WorkspaceVolumeSource `json:"workspace,omitempty"`
 }
 
 // +kubebuilder:validation:XValidation:rule="!has(self.externalTrafficPolicy) || self.type in ['NodePort', 'LoadBalancer']",message="externalTrafficPolicy requires a NodePort or LoadBalancer Service"
@@ -175,7 +179,7 @@ type SMBWorkspaceShare struct {
 	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9][A-Za-z0-9_-]*$`
 	ShareName string `json:"shareName,omitempty"`
 
-	PasswordSecretRef SecretKeyReference `json:"passwordSecretRef"`
+	PasswordSecretRef *SecretKeyReference `json:"passwordSecretRef,omitempty"`
 
 	ReadOnly bool `json:"readOnly,omitempty"`
 
@@ -289,14 +293,18 @@ type DrainPolicy struct {
 	TimeoutAction DrainTimeoutAction `json:"timeoutAction,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:rule="self.disposable || self.storage.data.type != 'EmptyDir'",message="data EmptyDir requires disposable=true"
+// +kubebuilder:validation:XValidation:rule="self.disposable || !has(self.storage) || !has(self.storage.data) || !has(self.storage.data.type) || self.storage.data.type != 'EmptyDir'",message="data EmptyDir requires disposable=true"
 // +kubebuilder:validation:XValidation:rule="!has(self.env) || self.env.all(e, !['HOME', 'PATH', 'T3CODE_HOME', 'XDG_CACHE_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'GH_CONFIG_DIR', 'GH_HOST', 'GH_GIT_PROTOCOL', 'GH_TOKEN', 'GITHUB_TOKEN'].exists(n, n == e.name))",message="env contains a reserved runtime variable"
-// +kubebuilder:validation:XValidation:rule="!has(self.workspaceSharing) || !has(self.workspaceSharing.smb) || self.storage.workspace.type in ['ExistingClaim', 'ClaimTemplate']",message="SMB workspace sharing requires a claim-backed workspace"
-// +kubebuilder:validation:XValidation:rule="!has(self.workspaceSharing) || !has(self.workspaceSharing.smb) || self.storage.data.type != 'ExistingClaim' || self.storage.workspace.type != 'ExistingClaim' || self.storage.data.existingClaim.name != self.storage.workspace.existingClaim.name",message="SMB workspace and data must use different claims"
+// +kubebuilder:validation:XValidation:rule="!has(self.workspaceSharing) || !has(self.workspaceSharing.smb) || !has(self.storage) || !has(self.storage.workspace) || !has(self.storage.workspace.type) || self.storage.workspace.type in ['ExistingClaim', 'ClaimTemplate']",message="SMB workspace sharing requires a claim-backed workspace"
+// +kubebuilder:validation:XValidation:rule="!has(self.workspaceSharing) || !has(self.workspaceSharing.smb) || !has(self.storage) || !has(self.storage.data) || !has(self.storage.workspace) || !has(self.storage.data.existingClaim) || !has(self.storage.workspace.existingClaim) || self.storage.data.existingClaim.name != self.storage.workspace.existingClaim.name",message="SMB workspace and data must use different claims"
+// +kubebuilder:validation:XValidation:rule="!has(self.providers) || self.providers.all(name, name.matches('^[a-z]([-a-z0-9]*[a-z0-9])?$') && size(name) <= 63)",message="provider names must be lowercase DNS labels that start with a letter"
 type WorkstationSpec struct {
 	// +kubebuilder:validation:Pattern=`^[^[:space:]@]+@sha256:[0-9a-f]{64}$`
 	// +kubebuilder:validation:MaxLength=512
-	Image string `json:"image"`
+	Image string `json:"image,omitempty"`
+
+	// +kubebuilder:validation:MaxProperties=32
+	Providers map[string]ProviderSpec `json:"providers,omitempty"`
 
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$`
@@ -315,7 +323,8 @@ type WorkstationSpec struct {
 
 	Disposable bool `json:"disposable,omitempty"`
 
-	Storage WorkstationStorage `json:"storage"`
+	// +kubebuilder:default:={}
+	Storage WorkstationStorage `json:"storage,omitempty"`
 
 	WorkspaceSharing *WorkspaceSharing `json:"workspaceSharing,omitempty"`
 

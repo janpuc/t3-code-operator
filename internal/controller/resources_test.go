@@ -141,7 +141,7 @@ func TestClaimBackedWorkspaceCanBeSharedThroughSMB(t *testing.T) {
 	workstation.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
 		Username:          "developer",
 		ShareName:         "projects",
-		PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
+		PasswordSecretRef: &t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 		Service: &t3v1alpha1.SMBServiceSpec{
 			Type:                     corev1.ServiceTypeLoadBalancer,
 			Annotations:              map[string]string{"lb.example.test/pool": "lan"},
@@ -228,7 +228,7 @@ func TestSMBRejectsAWorkspaceThatReusesTheDataClaim(t *testing.T) {
 		ExistingClaim: &t3v1alpha1.ExistingClaimVolumeSource{Name: "runtime-data"},
 	}
 	workstation.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
-		PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
+		PasswordSecretRef: &t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 	}}
 	if _, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages()); err == nil ||
 		!strings.Contains(err.Error(), "must use different claims") {
@@ -244,7 +244,7 @@ func TestSMBServiceChangesDoNotRollTheWorkstation(t *testing.T) {
 		ExistingClaim: &t3v1alpha1.ExistingClaimVolumeSource{Name: "workspace-pvc"},
 	}
 	workstation.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
-		PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
+		PasswordSecretRef: &t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 		Service:           &t3v1alpha1.SMBServiceSpec{Type: corev1.ServiceTypeClusterIP},
 	}}
 	manifest := controllerTestManifest(t, workstation)
@@ -276,7 +276,7 @@ func TestSMBSharingRejectsNonClaimWorkspace(t *testing.T) {
 		EmptyDir: &corev1.EmptyDirVolumeSource{},
 	}
 	workstation.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
-		PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
+		PasswordSecretRef: &t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 	}}
 	_, err := BuildWorkloadResources(workstation, controllerTestManifest(t, workstation), nil, testWorkloadImages())
 	if err == nil || !strings.Contains(err.Error(), "claim-backed") {
@@ -321,7 +321,7 @@ func TestEveryPodShapeFieldChangesThePodTemplate(t *testing.T) {
 		},
 		"workspace-sharing": func(value *t3v1alpha1.Workstation) {
 			value.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
-				PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
+				PasswordSecretRef: &t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 			}}
 		},
 	}

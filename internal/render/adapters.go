@@ -36,7 +36,7 @@ func adapterFor(driver string) (driverAdapter, error) {
 		return claudeAdapter{}, nil
 	case "opencode":
 		return openCodeAdapter{}, nil
-	case "cursor", "grok":
+	case "cursor", "grok", "antigravity":
 		return alphaAdapter{driver: driver}, nil
 	default:
 		return nil, fmt.Errorf("driver %q has no renderer adapter", driver)

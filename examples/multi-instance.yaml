@@ -1,0 +1,36 @@
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Workstation
+metadata:
+  name: t3-code
+  namespace: agents
+spec:
+  providers:
+    codex:
+      enabled: true
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Harness
+metadata:
+  name: codex-review
+  namespace: agents
+spec:
+  driver: codex
+  displayName: Codex (review)
+  config:
+    model: gpt-5.6-sol
+    reasoningEffort: high
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: MCPServer
+metadata:
+  name: github
+  namespace: agents
+spec:
+  config:
+    url: https://api.githubcopilot.com/mcp/
+  bearerTokenSecretRef:
+    name: t3-code-config
+    key: GH_TOKEN
+  harnessRefs:
+    - name: codex-review

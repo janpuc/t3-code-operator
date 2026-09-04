@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NYZCAGSA31PNYFMR2Z18QQ
+  created: "2026-09-04T10:21:05Z"
+spec:
+  target:
+    file: internal/render/adapters.go
+  type: why
+  title: Antigravity is an alpha adapter and its runtime stays out of the image
+  body: |-
+    Upstream t3 ships the Antigravity driver in its nightly track and downloads
+    Google's ACP agent itself (about 2 GB extracted per platform) into the
+    environment when the user chooses Install Antigravity, keeping it under the
+    server state directory on retained `/data`. Baking that runtime into the
+    operator image would double its size for a driver most Workstations leave
+    disabled, so the operator only knows the driver name. Like Cursor and Grok
+    it is alpha: it speaks ACP, and no MCP or Extension file dialect has live
+    proof, so the renderer programs upstream provider settings only.
+  anchor:
+    scope: excerpt
+    excerpt: "\tcase \"cursor\", \"grok\", \"antigravity\":"
+    before: "\t\treturn claudeAdapter{}, nil\n\tcase \"opencode\":\n\t\treturn openCodeAdapter{}, nil"
+    after: "\t\treturn alphaAdapter{driver: driver}, nil\n\tdefault:\n\t\treturn nil, fmt.Errorf(\"driver %q has no renderer adapter\", driver)"
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+  git:
+    commit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc
+    path: internal/render/adapters.go
+    line: 39
+status:
+  lastSeenLine: 39
+  resolution: ok
+  resolvedAt: "2026-09-04T10:21:05Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

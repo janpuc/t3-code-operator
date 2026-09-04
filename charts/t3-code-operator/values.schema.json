@@ -208,6 +208,26 @@
           }
         }
       }
+    },
+    "workstation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^(sha256:[0-9a-f]{64})?$"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {

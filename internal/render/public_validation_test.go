@@ -33,7 +33,7 @@ func TestPublicDialectCapabilitiesMatchRenderedOutput(t *testing.T) {
 			t.Errorf("%s did not report MCP server capability", driver)
 		}
 	}
-	for _, driver := range []string{"cursor", "grok", "future"} {
+	for _, driver := range []string{"cursor", "grok", "antigravity", "future"} {
 		if ProgramsMCPServers(driver) {
 			t.Errorf("%s reported unavailable MCP server capability", driver)
 		}
@@ -65,5 +65,15 @@ func TestPublicDialectCapabilitiesMatchRenderedOutput(t *testing.T) {
 		if got := ProgramsExtensionSource(test.driver, test.sourceType); got != test.want {
 			t.Errorf("ProgramsExtensionSource(%q, %q) = %t, want %t", test.driver, test.sourceType, got, test.want)
 		}
+	}
+}
+
+func TestAntigravityRendersAsAnAlphaDriver(t *testing.T) {
+	support, err := ValidateHarness("agents", Harness{InstanceID: "antigravity", Driver: "antigravity", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if support != SupportLevelAlpha {
+		t.Fatalf("antigravity support level is %q, want %q", support, SupportLevelAlpha)
 	}
 }

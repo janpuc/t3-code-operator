@@ -93,7 +93,18 @@ func boundedResourceName(name, suffix string) string {
 }
 
 type WorkloadImages struct {
-	SMB string
+	SMB         string
+	Workstation string
+}
+
+func workstationImage(workstation *t3v1alpha1.Workstation, images WorkloadImages) (string, error) {
+	if workstation.Spec.Image != "" {
+		return workstation.Spec.Image, nil
+	}
+	if images.Workstation != "" {
+		return images.Workstation, nil
+	}
+	return "", errors.New("Workstation image is required: set spec.image or start the operator with --default-workstation-image")
 }
 
 func BuildWorkloadResources(
@@ -116,11 +127,15 @@ func BuildWorkloadResources(
 	labels := workstationLabels(names.Base)
 	owner := workstationOwner(workstation)
 
+	image, err := workstationImage(workstation, images)
+	if err != nil {
+		return WorkloadResources{}, err
+	}
 	volumes, mounts, claims, err := buildStorage(workstation, names, labels)
 	if err != nil {
 		return WorkloadResources{}, err
 	}
-	containers, err := buildContainers(workstation, names, mounts)
+	containers, err := buildContainers(workstation, image, names, mounts)
 	if err != nil {
 		return WorkloadResources{}, err
 	}
@@ -209,8 +224,9 @@ func buildSMBWorkspaceResources(
 	if workstation.Spec.WorkspaceSharing == nil || workstation.Spec.WorkspaceSharing.SMB == nil {
 		return nil, nil, nil, nil
 	}
-	if workstation.Spec.Storage.Workspace.Type != t3v1alpha1.WorkspaceVolumeExistingClaim &&
-		workstation.Spec.Storage.Workspace.Type != t3v1alpha1.WorkspaceVolumeClaimTemplate {
+	storage := effectiveStorage(workstation)
+	if storage.Workspace.Type != t3v1alpha1.WorkspaceVolumeExistingClaim &&
+		storage.Workspace.Type != t3v1alpha1.WorkspaceVolumeClaimTemplate {
 		return nil, nil, nil, errors.New("SMB workspace sharing requires a claim-backed workspace")
 	}
 	if workstation.UID == "" {
@@ -221,7 +237,8 @@ func buildSMBWorkspaceResources(
 		return nil, nil, nil, errors.New("SMB workspace and data must use different claims")
 	}
 	share := workstation.Spec.WorkspaceSharing.SMB
-	if share.PasswordSecretRef.Name == "" || share.PasswordSecretRef.Key == "" {
+	passwordSecretRef := effectiveSMBPasswordSecretRef(workstation, share)
+	if passwordSecretRef.Name == "" || passwordSecretRef.Key == "" {
 		return nil, nil, nil, errors.New("SMB password Secret reference is required")
 	}
 	username := share.Username
@@ -289,8 +306,8 @@ func buildSMBWorkspaceResources(
 		{
 			Name: "smb-credentials",
 			VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
-				SecretName: share.PasswordSecretRef.Name,
-				Items:      []corev1.KeyToPath{{Key: share.PasswordSecretRef.Key, Path: "password", Mode: &secretMode}},
+				SecretName: passwordSecretRef.Name,
+				Items:      []corev1.KeyToPath{{Key: passwordSecretRef.Key, Path: "password", Mode: &secretMode}},
 			}},
 		},
 		{Name: "smb-state", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
@@ -391,6 +408,7 @@ func buildSidecarRole(
 
 func buildContainers(
 	workstation *t3v1alpha1.Workstation,
+	image string,
 	names ResourceNames,
 	mounts []corev1.VolumeMount,
 ) ([]corev1.Container, error) {
@@ -412,7 +430,7 @@ func buildContainers(
 	return []corev1.Container{
 		{
 			Name:            "t3-code",
-			Image:           workstation.Spec.Image,
+			Image:           image,
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Command:         []string{"/usr/bin/tini", "--"},
 			Args: []string{
@@ -430,7 +448,7 @@ func buildContainers(
 		},
 		{
 			Name:            "t3-coded",
-			Image:           workstation.Spec.Image,
+			Image:           image,
 			ImagePullPolicy: corev1.PullIfNotPresent,
 			Command:         []string{"/usr/bin/tini", "--"},
 			Args: []string{
@@ -606,16 +624,16 @@ func buildStorage(
 		claims = append(claims, workspaceClaim)
 	}
 	return []corev1.Volume{
-			data,
-			workspace,
-			{Name: "config", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-		}, []corev1.VolumeMount{
-			{Name: "data", MountPath: "/data"},
-			{Name: "workspace", MountPath: "/workspace", ReadOnly: workspaceReadOnly},
-			{Name: "config", MountPath: "/config"},
-			{Name: "tmp", MountPath: "/tmp"},
-		}, claims, nil
+		data,
+		workspace,
+		{Name: "config", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		{Name: "tmp", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+	}, []corev1.VolumeMount{
+		{Name: "data", MountPath: "/data"},
+		{Name: "workspace", MountPath: "/workspace", ReadOnly: workspaceReadOnly},
+		{Name: "config", MountPath: "/config"},
+		{Name: "tmp", MountPath: "/tmp"},
+	}, claims, nil
 }
 
 func buildDataVolume(
@@ -623,7 +641,7 @@ func buildDataVolume(
 	names ResourceNames,
 	labels map[string]string,
 ) (corev1.Volume, *corev1.PersistentVolumeClaim, error) {
-	source := workstation.Spec.Storage.Data
+	source := effectiveStorage(workstation).Data
 	volume := corev1.Volume{Name: "data"}
 	switch source.Type {
 	case t3v1alpha1.DataVolumeExistingClaim:
@@ -657,7 +675,7 @@ func buildWorkspaceVolume(
 	names ResourceNames,
 	labels map[string]string,
 ) (corev1.Volume, *corev1.PersistentVolumeClaim, bool, error) {
-	source := workstation.Spec.Storage.Workspace
+	source := effectiveStorage(workstation).Workspace
 	volume := corev1.Volume{Name: "workspace"}
 	switch source.Type {
 	case t3v1alpha1.WorkspaceVolumeExistingClaim:

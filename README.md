@@ -23,11 +23,13 @@ documented idle migration. Read
 A canary Workstation on a real cluster now passes live acceptance: image
 rollouts gated by the drain policy, the SMB share, pinned runtime tools,
 extensions installed in all three dialects, and a content change reaching a
-new live revision without a pod restart. NFS workspace acceptance and
-existing-session continuation remain pending until the production cutover.
-Cursor and Grok remain alpha until authenticated end-to-end environments are
-available. Read [PLAN.md](PLAN.md) for every release gate and
-[AGENTS.md](AGENTS.md) for repository rules.
+new live revision without a pod restart. The production Workstation runs on
+this operator. Version 0.2.0 made the API opinionated: providers live inline
+on the Workstation and opt in explicitly, every other field defaults, and
+Extensions and MCPServers attach to every capable provider unless narrowed.
+Cursor, Grok, and Antigravity remain alpha until authenticated end-to-end
+environments are available. Read [PLAN.md](PLAN.md) for the original design
+and [AGENTS.md](AGENTS.md) for repository rules.
 
 ## The one invariant
 
@@ -49,33 +51,59 @@ lines of shell installing plugins imperatively, `reloader` wired to restart on
 every ConfigMap edit, and `strategy: Recreate` — so changing configuration
 destroys in-flight work.
 
+## Quick start
+
+Install the operator, then create one object:
+
+```yaml
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Workstation
+metadata:
+  name: t3-code
+  namespace: agents
+spec:
+  providers:
+    codex:
+      enabled: true
+```
+
+Everything else has a default: the runtime image pinned by the operator
+release, retained `/data` and `/workspace` claims on the default storage class,
+the drain policy, and the environment name shown in T3 clients, which is the
+Workstation name. Providers are opt-in; each one needs an explicit `enabled`.
+The [examples](examples/) grow from that object to a shared-workspace,
+multi-provider setup. Read the [Workstation reference](docs/workstation.md)
+and the [providers guide](docs/providers.md) for every field and default.
+
 ## Kinds
 
 `t3code.janpuc.com/v1alpha1` — all namespaced.
 
 | Kind | Purpose |
 |---|---|
-| `Workstation` | The machine: image, retained data, PVC or NFS workspace, optional SMB sharing, identity, tools, and network. The only kind that becomes a Pod. |
-| `Harness` | One upstream t3 provider instance. Two instances can use the same driver with different config. |
-| `Extension` | Anything a harness loads — skills, plugins, or both. |
-| `MCPServer` | One endpoint, rendered into every dialect its harnesses speak. |
+| `Workstation` | The machine: image, retained data, PVC or NFS workspace, optional SMB sharing, identity, tools, network, and its inline providers. The only kind that becomes a Pod. |
+| `Harness` | One upstream t3 provider instance shared across Workstations, or one whose instance ID is not a DNS label. |
+| `Extension` | Anything a provider loads — skills, plugins, or both. |
+| `MCPServer` | One endpoint, rendered into every dialect its providers speak. |
 
 Attachment points **upward**, the way Gateway API routes attach to gateways:
 
 ```
-Extension.spec.harnessRefs   ──▶  Harness
-MCPServer.spec.harnessRefs   ──▶  Harness
+Extension.spec.harnessRefs   ──▶  provider (Workstation.spec.providers key or Harness)
+MCPServer.spec.harnessRefs   ──▶  provider
 Harness.spec.workstationRefs ──▶  Workstation  (= the Pod)
 ```
 
-Children declare intent; parents declare policy via
-`Harness.spec.attachmentPolicy`. MVP references use exact names in one
-namespace. Adding a skill means creating one file. No parent object changes.
+Children declare intent; parents declare policy via `attachmentPolicy`. A
+child that names no target attaches to every provider in its namespace whose
+driver can program it, so adding a skill or an MCP server means creating one
+file and touching nothing else. References use exact names in one namespace.
 
-The first release implements all five upstream drivers: `codex`,
-`claudeAgent`, `cursor`, `grok`, and `opencode`. Cursor and Grok are alpha until
-authenticated end-to-end environments are available. Their installation and
-provider-registration smoke tests still gate release.
+The operator implements all six upstream drivers: `codex`, `claudeAgent`,
+`opencode`, `cursor`, `grok`, and `antigravity`. Cursor, Grok, and Antigravity
+are alpha until authenticated end-to-end environments are available; the
+Antigravity driver ships in t3's nightly track first, so it needs a nightly
+runtime image.
 
 Upstream t3 owns settings, sessions, and provider orchestration. The existing
 container wrapper can inform image construction, but its `t3code.toml` contract
@@ -108,8 +136,14 @@ helm install t3-code-operator \
   --version 0.1.7
 ```
 
-Pin the operator, SMB, and Workstation images to the digests from the
-release notes.
+Pin the operator and SMB images to the digests from the release notes. The
+published chart already pins `workstation.image` to the runtime digest of the
+same release, so a Workstation without `spec.image` runs that runtime.
+
+The stable runtime tracks the latest t3 release. A nightly runtime with the
+newest upstream drivers is published daily as
+`ghcr.io/janpuc/t3-code-runtime:nightly`; pin its digest in `spec.image` to
+use it.
 
 ## Ecosystem
 

@@ -361,7 +361,7 @@ func TestSMBServiceRemainsUntilTheDisabledPodShapeIsAvailable(t *testing.T) {
 		}},
 	}
 	workstation.Spec.WorkspaceSharing = &t3v1alpha1.WorkspaceSharing{SMB: &t3v1alpha1.SMBWorkspaceShare{
-		PasswordSecretRef: t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
+		PasswordSecretRef: &t3v1alpha1.SecretKeyReference{Name: "workspace-smb", Key: "password"},
 	}}
 	kube, reconciler := newWorkstationTestReconciler(t, now, workstation, controllerHarness("provider-token"))
 	reconcileWorkstation(t, reconciler)

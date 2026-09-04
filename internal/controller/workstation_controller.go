@@ -42,7 +42,12 @@ type WorkstationReconciler struct {
 	Assembler         *Assembler
 	ActivityFreshness time.Duration
 	SMBImage          string
+	WorkstationImage  string
 	Now               func() time.Time
+}
+
+func (reconciler *WorkstationReconciler) images() WorkloadImages {
+	return WorkloadImages{SMB: reconciler.SMBImage, Workstation: reconciler.WorkstationImage}
 }
 
 func (reconciler *WorkstationReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
@@ -79,7 +84,7 @@ func (reconciler *WorkstationReconciler) Reconcile(ctx context.Context, request 
 		return reconciler.failReconcile(ctx, workstation, "ResourceReadFailed", err)
 	}
 	expandedSecrets := unionSortedStrings(priorSecrets, assembly.SecretNames)
-	resources, err := BuildWorkloadResources(workstation, assembly.Manifest, expandedSecrets, WorkloadImages{SMB: reconciler.SMBImage})
+	resources, err := BuildWorkloadResources(workstation, assembly.Manifest, expandedSecrets, reconciler.images())
 	if err != nil {
 		return reconciler.failReconcile(ctx, workstation, "ResourceBuildFailed", err)
 	}
@@ -159,7 +164,7 @@ func (reconciler *WorkstationReconciler) Reconcile(ctx context.Context, request 
 	}
 
 	if reportProgramsDeployment(report, deployment, assembly.Manifest.DesiredRevision) {
-		contracted, buildErr := BuildWorkloadResources(workstation, assembly.Manifest, assembly.SecretNames, WorkloadImages{SMB: reconciler.SMBImage})
+		contracted, buildErr := BuildWorkloadResources(workstation, assembly.Manifest, assembly.SecretNames, reconciler.images())
 		if buildErr != nil {
 			return reconciler.failReconcile(ctx, workstation, "ResourceBuildFailed", buildErr)
 		}
@@ -485,20 +490,21 @@ func reportReason(report *sidecar.StatusReport) string {
 
 func claimStatusNames(workstation *t3v1alpha1.Workstation) (string, string) {
 	names := NamesForWorkstation(workstation.Name)
+	storage := effectiveStorage(workstation)
 	data := ""
-	switch workstation.Spec.Storage.Data.Type {
+	switch storage.Data.Type {
 	case t3v1alpha1.DataVolumeExistingClaim:
-		if workstation.Spec.Storage.Data.ExistingClaim != nil {
-			data = workstation.Spec.Storage.Data.ExistingClaim.Name
+		if storage.Data.ExistingClaim != nil {
+			data = storage.Data.ExistingClaim.Name
 		}
 	case t3v1alpha1.DataVolumeClaimTemplate:
 		data = names.DataClaim
 	}
 	workspace := ""
-	switch workstation.Spec.Storage.Workspace.Type {
+	switch storage.Workspace.Type {
 	case t3v1alpha1.WorkspaceVolumeExistingClaim:
-		if workstation.Spec.Storage.Workspace.ExistingClaim != nil {
-			workspace = workstation.Spec.Storage.Workspace.ExistingClaim.Name
+		if storage.Workspace.ExistingClaim != nil {
+			workspace = storage.Workspace.ExistingClaim.Name
 		}
 	case t3v1alpha1.WorkspaceVolumeClaimTemplate:
 		workspace = names.WorkspaceClaim

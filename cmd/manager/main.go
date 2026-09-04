@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"time"
@@ -21,6 +22,7 @@ func main() {
 	var miseBinary string
 	var miseCacheDirectory string
 	var smbImage string
+	var workstationImage string
 	var toolResolutionTimeout time.Duration
 	var activityFreshness time.Duration
 	var logOptions zap.Options
@@ -30,6 +32,7 @@ func main() {
 	flag.StringVar(&miseBinary, "mise-binary", "/usr/local/bin/mise", "Absolute path to the mise executable.")
 	flag.StringVar(&miseCacheDirectory, "mise-cache-directory", "/var/cache/t3-code-operator/mise", "Absolute path to the shared mise resolution cache.")
 	flag.StringVar(&smbImage, "smb-image", "", "Image reference for the SMB workspace sidecar container.")
+	flag.StringVar(&workstationImage, "default-workstation-image", "", "Digest-pinned runtime image for Workstations that set no spec.image.")
 	flag.DurationVar(&toolResolutionTimeout, "tool-resolution-timeout", 2*time.Minute, "Maximum duration for one mise platform resolution.")
 	flag.DurationVar(&activityFreshness, "activity-freshness", 15*time.Second, "Maximum age of a drain activity report.")
 	logOptions.BindFlags(flag.CommandLine)
@@ -37,6 +40,10 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logOptions)))
 	setupLog := ctrl.Log.WithName("setup")
+	if workstationImage != "" && !controller.DigestPinnedImagePattern.MatchString(workstationImage) {
+		setupLog.Error(errors.New("the default Workstation image must be pinned by sha256 digest"), "invalid --default-workstation-image", "image", workstationImage)
+		os.Exit(1)
+	}
 
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -80,6 +87,7 @@ func main() {
 			Assembler:         assembler,
 			ActivityFreshness: activityFreshness,
 			SMBImage:          smbImage,
+			WorkstationImage:  workstationImage,
 		},
 		&controller.HarnessReconciler{Client: manager.GetClient(), Assembler: assembler},
 		&controller.ExtensionReconciler{Client: manager.GetClient(), Assembler: assembler},

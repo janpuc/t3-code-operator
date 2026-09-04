@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/koment-dev/koment/main/schema/v1alpha/annotation.schema.json
+apiVersion: koment.dev/v1alpha
+kind: Annotation
+metadata:
+  id: 01M1NZ00BHD52870T8MVENJDYV
+  created: "2026-09-04T10:21:26Z"
+spec:
+  target:
+    file: api/v1alpha1/workstation_types.go
+  type: why
+  title: Inline providers are content, keyed by DNS labels children can name
+  body: |-
+    The map lives on the Workstation because a vanilla deployment should be one
+    object, not a Workstation plus one Harness per provider. It does not violate
+    the one invariant: the pod template is built from image, env, resources,
+    security context, storage, and SMB only, so a provider change publishes a
+    new rendered revision and never a new pod revision
+    (TestProviderContentChangeDoesNotUpdateTheDeployment guards this).
+
+    Keys double as the upstream instance ID and as the name an Extension or
+    MCPServer puts in `harnessRefs`, which is why the CEL rule restricts them to
+    lowercase DNS labels that start with a letter: the reference type only
+    admits DNS names, and t3 slugs must start with a letter. A provider whose
+    instance ID cannot be a DNS label, or one shared by several Workstations, is
+    still a Harness.
+  anchor:
+    scope: excerpt
+    excerpt: "\t// +kubebuilder:validation:MaxProperties=32\n\tProviders map[string]ProviderSpec `json:\"providers,omitempty\"`"
+    before: "\t// +kubebuilder:validation:MaxLength=512\n\tImage string `json:\"image,omitempty\"`\n"
+    after: "\n\t// +kubebuilder:validation:MaxLength=253\n\t// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$`"
+  author:
+    name: janpuc
+    email: janpuc@proton.me
+    kind: agent
+    source: git-config
+  git:
+    commit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc
+    path: api/v1alpha1/workstation_types.go
+    line: 306
+status:
+  lastSeenLine: 306
+  resolution: ok
+  resolvedAt: "2026-09-04T10:21:26Z"
+  resolvedCommit: 772d2a2d97ac0be927be31603f0eebdc947cb6cc

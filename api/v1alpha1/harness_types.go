@@ -7,10 +7,10 @@ import (
 
 type HarnessSpec struct {
 	// +kubebuilder:validation:Pattern=`^[A-Za-z][A-Za-z0-9_-]{0,63}$`
-	InstanceID string `json:"instanceId"`
+	InstanceID string `json:"instanceId,omitempty"`
 
 	// +kubebuilder:validation:Pattern=`^[A-Za-z][A-Za-z0-9_-]{0,63}$`
-	Driver string `json:"driver"`
+	Driver string `json:"driver,omitempty"`
 
 	// +kubebuilder:validation:MaxLength=128
 	DisplayName string `json:"displayName,omitempty"`
@@ -30,11 +30,10 @@ type HarnessSpec struct {
 	// +kubebuilder:validation:Type=object
 	Config *apiextensionsv1.JSON `json:"config,omitempty"`
 
-	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=64
 	// +listType=map
 	// +listMapKey=name
-	WorkstationRefs []LocalObjectReference `json:"workstationRefs"`
+	WorkstationRefs []LocalObjectReference `json:"workstationRefs,omitempty"`
 
 	// +kubebuilder:default:={}
 	AttachmentPolicy AttachmentPolicy `json:"attachmentPolicy,omitempty"`

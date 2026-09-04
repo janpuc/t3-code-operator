@@ -63,48 +63,56 @@ func (assembler *Assembler) Assemble(
 		return Assembly{}, err
 	}
 
-	extensionsByHarness := make(map[string][]render.Extension)
-	for index := range extensionList.Items {
-		extension := &extensionList.Items[index]
-		if !extension.DeletionTimestamp.IsZero() {
-			continue
-		}
-		for _, reference := range extension.Spec.HarnessRefs {
-			extensionsByHarness[reference.Name] = append(
-				extensionsByHarness[reference.Name],
-				convertExtension(workstation.Namespace, extension),
-			)
-		}
+	type attachedProvider struct {
+		refName  string
+		policy   t3v1alpha1.AttachmentPolicy
+		resolved render.Harness
 	}
-	serversByHarness := make(map[string][]render.MCPServer)
-	for index := range serverList.Items {
-		server := &serverList.Items[index]
-		if !server.DeletionTimestamp.IsZero() {
-			continue
+	providers := make([]attachedProvider, 0, len(workstation.Spec.Providers)+len(harnessList.Items))
+	for _, name := range sortedProviderNames(workstation.Spec.Providers) {
+		spec := workstation.Spec.Providers[name]
+		resolved, err := convertProvider(workstation.Namespace, name, spec)
+		if err != nil {
+			return Assembly{}, err
 		}
-		for _, reference := range server.Spec.HarnessRefs {
-			serversByHarness[reference.Name] = append(
-				serversByHarness[reference.Name],
-				convertMCPServer(workstation.Namespace, server),
-			)
-		}
+		providers = append(providers, attachedProvider{refName: name, policy: spec.AttachmentPolicy, resolved: resolved})
 	}
-
-	harnesses := make([]render.Harness, 0, len(harnessList.Items))
 	for index := range harnessList.Items {
 		harness := &harnessList.Items[index]
-		if !harness.DeletionTimestamp.IsZero() {
+		if !harness.DeletionTimestamp.IsZero() || !harnessAttachesToWorkstation(harness, workstation.Name) {
 			continue
 		}
-		if !referencesName(harness.Spec.WorkstationRefs, workstation.Name) {
-			continue
+		resolved, err := convertHarness(workstation.Namespace, harness)
+		if err != nil {
+			return Assembly{}, err
 		}
-		resolved := convertHarness(workstation.Namespace, harness)
-		if attachmentsAllowed(harness.Spec.AttachmentPolicy.Extensions) {
-			resolved.Extensions = extensionsByHarness[harness.Name]
+		providers = append(providers, attachedProvider{refName: harness.Name, policy: harness.Spec.AttachmentPolicy, resolved: resolved})
+	}
+
+	harnesses := make([]render.Harness, 0, len(providers))
+	for _, provider := range providers {
+		resolved := provider.resolved
+		for index := range extensionList.Items {
+			extension := &extensionList.Items[index]
+			if !extension.DeletionTimestamp.IsZero() {
+				continue
+			}
+			converted := convertExtension(workstation.Namespace, extension)
+			programs := func(driver string) bool {
+				return render.ProgramsExtensionSource(driver, converted.Source.Type)
+			}
+			if attachmentSelects(extension.Spec.HarnessRefs, provider.refName, resolved.Driver, provider.policy.Extensions, programs) {
+				resolved.Extensions = append(resolved.Extensions, converted)
+			}
 		}
-		if attachmentsAllowed(harness.Spec.AttachmentPolicy.MCPServers) {
-			resolved.MCPServers = serversByHarness[harness.Name]
+		for index := range serverList.Items {
+			server := &serverList.Items[index]
+			if !server.DeletionTimestamp.IsZero() {
+				continue
+			}
+			if attachmentSelects(server.Spec.HarnessRefs, provider.refName, resolved.Driver, provider.policy.MCPServers, render.ProgramsMCPServers) {
+				resolved.MCPServers = append(resolved.MCPServers, convertMCPServer(workstation.Namespace, server))
+			}
 		}
 		harnesses = append(harnesses, resolved)
 	}
@@ -113,7 +121,7 @@ func (assembler *Assembler) Assemble(
 		Namespace:   workstation.Namespace,
 		Name:        workstation.Name,
 		UID:         string(workstation.UID),
-		MachineInfo: convertMachineInfo(workstation.Spec.MachineInfo),
+		MachineInfo: effectiveMachineInfo(workstation),
 		Git:         convertGitConfiguration(workstation.Namespace, workstation.Spec.Git),
 		Tools:       tools,
 		Harnesses:   harnesses,
@@ -135,11 +143,11 @@ func (assembler *Assembler) Assemble(
 	return Assembly{Manifest: manifest, SecretNames: secretNames}, nil
 }
 
-func convertMachineInfo(input *t3v1alpha1.MachineInfo) *render.MachineInfo {
-	if input == nil {
-		return nil
+func effectiveMachineInfo(workstation *t3v1alpha1.Workstation) *render.MachineInfo {
+	if workstation.Spec.MachineInfo == nil {
+		return &render.MachineInfo{PrettyHostname: workstation.Name}
 	}
-	return &render.MachineInfo{PrettyHostname: input.PrettyHostname}
+	return &render.MachineInfo{PrettyHostname: workstation.Spec.MachineInfo.PrettyHostname}
 }
 
 func convertGitConfiguration(namespace string, input *t3v1alpha1.GitIdentity) *render.GitConfiguration {
@@ -182,20 +190,24 @@ func attachmentsAllowed(mode t3v1alpha1.AttachmentPolicyMode) bool {
 	return mode == "" || mode == t3v1alpha1.AttachmentPolicySameNamespace
 }
 
-func convertHarness(namespace string, input *t3v1alpha1.Harness) render.Harness {
+func convertHarness(namespace string, input *t3v1alpha1.Harness) (render.Harness, error) {
 	enabled := true
 	if input.Spec.Enabled != nil {
 		enabled = *input.Spec.Enabled
 	}
+	driver, err := harnessDriver(input)
+	if err != nil {
+		return render.Harness{}, err
+	}
 	return render.Harness{
-		InstanceID:  input.Spec.InstanceID,
-		Driver:      input.Spec.Driver,
-		DisplayName: input.Spec.DisplayName,
+		InstanceID:  harnessInstanceID(input),
+		Driver:      driver,
+		DisplayName: resolveDisplayName(input.Spec.DisplayName, driver),
 		AccentColor: input.Spec.AccentColor,
 		Enabled:     enabled,
 		Environment: convertEnvironment(namespace, input.Spec.Environment),
 		Config:      convertJSON(input.Spec.Config),
-	}
+	}, nil
 }
 
 func convertEnvironment(namespace string, input []t3v1alpha1.EnvironmentVariable) []render.EnvironmentVariable {
@@ -215,11 +227,22 @@ func convertEnvironment(namespace string, input []t3v1alpha1.EnvironmentVariable
 }
 
 func convertMCPServer(namespace string, input *t3v1alpha1.MCPServer) render.MCPServer {
+	transport := input.Spec.Transport
+	if transport == "" {
+		transport = inferMCPTransport(input.Spec.Config)
+	}
 	result := render.MCPServer{
 		Name:        input.Name,
-		Transport:   input.Spec.Transport,
+		Transport:   transport,
 		Config:      convertJSON(input.Spec.Config),
 		Environment: convertEnvironment(namespace, input.Spec.Environment),
+	}
+	if input.Spec.BearerTokenSecretRef != nil {
+		result.Headers = append(result.Headers, render.Header{
+			Name:      "Authorization",
+			Prefix:    "Bearer ",
+			ValueFrom: convertSecretReference(namespace, *input.Spec.BearerTokenSecretRef),
+		})
 	}
 	for _, header := range input.Spec.Headers {
 		converted := render.Header{Name: header.Name, Prefix: header.Prefix}

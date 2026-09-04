@@ -4,7 +4,7 @@ set -euo pipefail
 readonly chart_dir="${1:-charts/t3-code-operator}"
 readonly nfs_values_file="$chart_dir/tests/values-nfs.yaml"
 readonly smb_values_file="$chart_dir/tests/values-smb.yaml"
-readonly kubernetes_schema_version=1.35.0
+readonly kubernetes_schema_version=1.37.0
 render_dir="$(mktemp -d)"
 
 cleanup() {
@@ -67,12 +67,18 @@ for required in \
   'type: LoadBalancer' \
   'externalTrafficPolicy: Cluster' \
   'smb-image=ghcr.io/janpuc/t3-code-smbd@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' \
+  'default-workstation-image=ghcr.io/janpuc/t3-code-runtime@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' \
   '192.0.2.0/24'; do
   rg -q --fixed-strings "$required" "$render_dir/smb.yaml" || {
     printf 'SMB render lacks value: %s\n' "$required" >&2
     exit 1
   }
 done
+
+if rg -q --fixed-strings 'default-workstation-image' "$render_dir/nfs.yaml"; then
+  printf 'render without a runtime digest must not set a default Workstation image\n' >&2
+  exit 1
+fi
 
 if rg -q 'secrets' "$render_dir/operator-role.yaml"; then
   printf 'operator ClusterRole must not read Secrets\n' >&2

@@ -8,10 +8,13 @@ The workspace PVC must differ from the `/data` PVC. The operator rejects a confi
 
 ## Configure the Workstation
 
-Create a password Secret. Do not store the password in chart values.
+Create a password Secret. Do not store the password in chart values. The
+default reference is `<workstation-name>-smb` under the key `password`, so a
+Workstation named `nvme` reads `nvme-smb` unless `passwordSecretRef` says
+otherwise.
 
 ```sh
-kubectl -n agents create secret generic nvme-workspace-smb \
+kubectl -n agents create secret generic nvme-smb \
   --from-literal=password='replace-with-a-long-random-password'
 ```
 

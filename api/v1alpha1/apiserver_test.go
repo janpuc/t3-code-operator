@@ -13,12 +13,13 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-const envtestIndexURL = "https://raw.githubusercontent.com/kubernetes-sigs/controller-tools/v0.21.0/envtest-releases.yaml"
+const envtestIndexURL = "https://raw.githubusercontent.com/kubernetes-sigs/controller-tools/v0.22.0/envtest-releases.yaml"
 
 func TestAPIServerValidationAndOpaqueConfigRoundTrip(t *testing.T) {
 	if os.Getenv("T3_PHASE1_ENVTEST") != "1" {
@@ -38,7 +39,7 @@ func TestAPIServerValidationAndOpaqueConfigRoundTrip(t *testing.T) {
 		CRDDirectoryPaths:            []string{filepath.Join(repositoryRoot, "config", "crd", "bases")},
 		ErrorIfCRDPathMissing:        true,
 		DownloadBinaryAssets:         true,
-		DownloadBinaryAssetsVersion:  "v1.36.0",
+		DownloadBinaryAssetsVersion:  "v1.37.0",
 		DownloadBinaryAssetsIndexURL: envtestIndexURL,
 		BinaryAssetsDirectory:        assetsDirectory,
 		ControlPlaneStartTimeout:     30 * time.Second,
@@ -80,6 +81,116 @@ func TestAPIServerValidationAndOpaqueConfigRoundTrip(t *testing.T) {
 	assertOpaqueConfigRoundTripsThroughAPIServer(t, ctx, apiClient, namespace.Name)
 	assertNFSWorkstationIsAcceptedAndDefaulted(t, ctx, apiClient, namespace.Name)
 	assertSMBWorkspaceSharingIsAcceptedAndDefaulted(t, ctx, apiClient, namespace.Name)
+	assertMinimalWorkstationIsDefaulted(t, ctx, apiClient, namespace.Name)
+	assertProvidersRequireExplicitEnabled(t, ctx, apiClient, namespace.Name)
+	assertMinimalContentObjectsAreAccepted(t, ctx, apiClient, namespace.Name)
+}
+
+func assertMinimalWorkstationIsDefaulted(t *testing.T, ctx context.Context, apiClient client.Client, namespace string) {
+	t.Helper()
+	workstation := &Workstation{
+		ObjectMeta: metav1.ObjectMeta{Name: "minimal", Namespace: namespace},
+		Spec: WorkstationSpec{
+			Providers: map[string]ProviderSpec{"codex": {Enabled: true}, "grok": {Enabled: false}},
+		},
+	}
+	if err := apiClient.Create(ctx, workstation); err != nil {
+		t.Fatal(err)
+	}
+	persisted := &Workstation{}
+	if err := apiClient.Get(ctx, client.ObjectKeyFromObject(workstation), persisted); err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Spec.Storage.Data.Type != DataVolumeClaimTemplate || persisted.Spec.Storage.Workspace.Type != WorkspaceVolumeClaimTemplate {
+		t.Fatalf("storage defaults were not applied: %#v", persisted.Spec.Storage)
+	}
+	if persisted.Spec.Drain == nil || persisted.Spec.Drain.Policy != DrainPolicyWaitForIdle {
+		t.Fatalf("drain defaults were not applied: %#v", persisted.Spec.Drain)
+	}
+	if persisted.Spec.Providers["codex"].AttachmentPolicy.MCPServers != AttachmentPolicySameNamespace {
+		t.Fatalf("provider attachment policy default was not applied: %#v", persisted.Spec.Providers)
+	}
+	if persisted.Spec.Providers["grok"].Enabled {
+		t.Fatal("an explicit enabled=false provider was persisted as enabled")
+	}
+
+	shared := &Workstation{
+		ObjectMeta: metav1.ObjectMeta{Name: "minimal-smb", Namespace: namespace},
+		Spec: WorkstationSpec{
+			Providers:        map[string]ProviderSpec{"codex": {Enabled: true}},
+			WorkspaceSharing: &WorkspaceSharing{SMB: &SMBWorkspaceShare{}},
+		},
+	}
+	if err := apiClient.Create(ctx, shared); err != nil {
+		t.Fatalf("SMB sharing without a password reference was rejected: %v", err)
+	}
+}
+
+func assertProvidersRequireExplicitEnabled(t *testing.T, ctx context.Context, apiClient client.Client, namespace string) {
+	t.Helper()
+	for name, providers := range map[string]map[string]any{
+		"implicit-provider": {"codex": map[string]any{}},
+		"invalid-provider":  {"Codex_Main": map[string]any{"enabled": true}},
+	} {
+		object := &unstructured.Unstructured{}
+		object.SetAPIVersion(GroupVersion.String())
+		object.SetKind("Workstation")
+		object.SetNamespace(namespace)
+		object.SetName(name)
+		object.Object["spec"] = map[string]any{"providers": providers}
+		err := apiClient.Create(ctx, object)
+		if err == nil {
+			t.Fatalf("invalid Workstation %q was accepted", name)
+		}
+		if !apierrors.IsInvalid(err) {
+			t.Fatalf("invalid Workstation %q returned %T: %v", name, err, err)
+		}
+	}
+}
+
+func assertMinimalContentObjectsAreAccepted(t *testing.T, ctx context.Context, apiClient client.Client, namespace string) {
+	t.Helper()
+	harness := &Harness{ObjectMeta: metav1.ObjectMeta{Name: "claude", Namespace: namespace}}
+	if err := apiClient.Create(ctx, harness); err != nil {
+		t.Fatalf("a Harness without instanceId, driver, or workstationRefs was rejected: %v", err)
+	}
+	server := &MCPServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "gateway", Namespace: namespace},
+		Spec: MCPServerSpec{
+			Config:               &apiextensionsv1.JSON{Raw: []byte(`{"url":"https://mcp.example.test/gateway"}`)},
+			BearerTokenSecretRef: &SecretKeyReference{Name: "gateway", Key: "token"},
+		},
+	}
+	if err := apiClient.Create(ctx, server); err != nil {
+		t.Fatalf("an MCPServer with only config and a bearer token was rejected: %v", err)
+	}
+	extension := &Extension{
+		ObjectMeta: metav1.ObjectMeta{Name: "skills", Namespace: namespace},
+		Spec: ExtensionSpec{Source: ExtensionSource{
+			Type: ExtensionSourceGit,
+			Git:  &GitExtensionSource{URL: "https://example.test/skills.git", Commit: strings.Repeat("b", 40)},
+		}},
+	}
+	if err := apiClient.Create(ctx, extension); err != nil {
+		t.Fatalf("an Extension without harnessRefs was rejected: %v", err)
+	}
+
+	inline := "inline"
+	conflicting := &MCPServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "conflicting-auth", Namespace: namespace},
+		Spec: MCPServerSpec{
+			Transport:            "http",
+			BearerTokenSecretRef: &SecretKeyReference{Name: "gateway", Key: "token"},
+			Headers:              []HTTPHeader{{Name: "Authorization", Value: &inline}},
+		},
+	}
+	err := apiClient.Create(ctx, conflicting)
+	if err == nil {
+		t.Fatal("the API server accepted a bearer token beside an Authorization header")
+	}
+	if !apierrors.IsInvalid(err) {
+		t.Fatalf("conflicting MCPServer returned %T: %v", err, err)
+	}
 }
 
 func assertInvalidWorkstationsAreRejected(t *testing.T, ctx context.Context, apiClient client.Client, namespace string) {
@@ -127,7 +238,7 @@ func assertInvalidWorkstationsAreRejected(t *testing.T, ctx context.Context, api
 		apiTestWorkstation(namespace, "invalid-smb-username", func(workstation *Workstation) {
 			workstation.Spec.WorkspaceSharing = &WorkspaceSharing{SMB: &SMBWorkspaceShare{
 				Username:          "agent user",
-				PasswordSecretRef: SecretKeyReference{Name: "workspace-smb", Key: "password"},
+				PasswordSecretRef: &SecretKeyReference{Name: "workspace-smb", Key: "password"},
 			}}
 		}),
 		apiTestWorkstation(namespace, "smb-on-nfs", func(workstation *Workstation) {
@@ -136,12 +247,12 @@ func assertInvalidWorkstationsAreRejected(t *testing.T, ctx context.Context, api
 				NFS:  &NFSVolumeSource{Server: "nas.internal", ExportPath: "/workspace"},
 			}
 			workstation.Spec.WorkspaceSharing = &WorkspaceSharing{SMB: &SMBWorkspaceShare{
-				PasswordSecretRef: SecretKeyReference{Name: "workspace-smb", Key: "password"},
+				PasswordSecretRef: &SecretKeyReference{Name: "workspace-smb", Key: "password"},
 			}}
 		}),
 		apiTestWorkstation(namespace, "invalid-smb-service-policy", func(workstation *Workstation) {
 			workstation.Spec.WorkspaceSharing = &WorkspaceSharing{SMB: &SMBWorkspaceShare{
-				PasswordSecretRef: SecretKeyReference{Name: "workspace-smb", Key: "password"},
+				PasswordSecretRef: &SecretKeyReference{Name: "workspace-smb", Key: "password"},
 				Service: &SMBServiceSpec{
 					Type:                  corev1.ServiceTypeClusterIP,
 					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyLocal,
@@ -150,7 +261,7 @@ func assertInvalidWorkstationsAreRejected(t *testing.T, ctx context.Context, api
 		}),
 		apiTestWorkstation(namespace, "invalid-smb-source-range", func(workstation *Workstation) {
 			workstation.Spec.WorkspaceSharing = &WorkspaceSharing{SMB: &SMBWorkspaceShare{
-				PasswordSecretRef: SecretKeyReference{Name: "workspace-smb", Key: "password"},
+				PasswordSecretRef: &SecretKeyReference{Name: "workspace-smb", Key: "password"},
 				Service: &SMBServiceSpec{
 					Type:                     corev1.ServiceTypeLoadBalancer,
 					LoadBalancerSourceRanges: []string{"not-a-cidr"},
@@ -173,7 +284,7 @@ func assertInvalidWorkstationsAreRejected(t *testing.T, ctx context.Context, api
 				ExistingClaim: &ExistingClaimVolumeSource{Name: "t3-data"},
 			}
 			workstation.Spec.WorkspaceSharing = &WorkspaceSharing{SMB: &SMBWorkspaceShare{
-				PasswordSecretRef: SecretKeyReference{Name: "workspace-smb", Key: "password"},
+				PasswordSecretRef: &SecretKeyReference{Name: "workspace-smb", Key: "password"},
 			}}
 		}),
 	}
@@ -192,7 +303,7 @@ func assertSMBWorkspaceSharingIsAcceptedAndDefaulted(t *testing.T, ctx context.C
 	t.Helper()
 	workstation := apiTestWorkstation(namespace, "smb-workspace", func(workstation *Workstation) {
 		workstation.Spec.WorkspaceSharing = &WorkspaceSharing{SMB: &SMBWorkspaceShare{
-			PasswordSecretRef: SecretKeyReference{Name: "workspace-smb", Key: "password"},
+			PasswordSecretRef: &SecretKeyReference{Name: "workspace-smb", Key: "password"},
 			Service:           &SMBServiceSpec{},
 		}}
 	})

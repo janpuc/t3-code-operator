@@ -7,6 +7,7 @@ import (
 	"time"
 
 	t3v1alpha1 "github.com/janpuc/t3-code-operator/api/v1alpha1"
+	"github.com/janpuc/t3-code-operator/internal/render"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,12 +26,16 @@ func (reconciler *HarnessReconciler) reconcileDeletion(
 	if !controllerutil.ContainsFinalizer(harness, contentFinalizer) {
 		return ctrl.Result{}, nil
 	}
+	workstations, err := workstationReferencesForHarness(ctx, reconciler.Client, harness)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	ready, err := contentRemovalReady(
 		ctx,
 		reconciler.Client,
 		reconciler.Assembler,
 		harness.Namespace,
-		harness.Spec.WorkstationRefs,
+		workstations,
 	)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -55,11 +60,15 @@ func (reconciler *ExtensionReconciler) reconcileDeletion(
 	if !controllerutil.ContainsFinalizer(extension, contentFinalizer) {
 		return ctrl.Result{}, nil
 	}
-	workstations, err := workstationReferencesForHarnesses(
+	workstations, err := workstationReferencesForAttachment(
 		ctx,
 		reconciler.Client,
 		extension.Namespace,
 		extension.Spec.HarnessRefs,
+		true,
+		func(driver string) bool {
+			return render.ProgramsExtensionSource(driver, render.ExtensionSourceType(extension.Spec.Source.Type))
+		},
 	)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -88,11 +97,13 @@ func (reconciler *MCPServerReconciler) reconcileDeletion(
 	if !controllerutil.ContainsFinalizer(server, contentFinalizer) {
 		return ctrl.Result{}, nil
 	}
-	workstations, err := workstationReferencesForHarnesses(
+	workstations, err := workstationReferencesForAttachment(
 		ctx,
 		reconciler.Client,
 		server.Namespace,
 		server.Spec.HarnessRefs,
+		false,
+		render.ProgramsMCPServers,
 	)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -157,25 +168,39 @@ func contentRemovalReady(
 	return true, nil
 }
 
-func workstationReferencesForHarnesses(
+func workstationReferencesForAttachment(
 	ctx context.Context,
 	kube client.Client,
 	namespace string,
 	references []t3v1alpha1.LocalObjectReference,
+	extension bool,
+	programs func(string) bool,
 ) ([]t3v1alpha1.LocalObjectReference, error) {
-	workstations := make([]t3v1alpha1.LocalObjectReference, 0)
-	for _, reference := range uniqueLocalReferences(references) {
-		harness := &t3v1alpha1.Harness{}
-		err := kube.Get(ctx, types.NamespacedName{Namespace: namespace, Name: reference.Name}, harness)
-		if apierrors.IsNotFound(err) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		workstations = append(workstations, harness.Spec.WorkstationRefs...)
+	targets, err := listProviderTargets(ctx, kube, namespace)
+	if err != nil {
+		return nil, err
 	}
-	return uniqueLocalReferences(workstations), nil
+	selected, _ := selectProviderTargets(targets, references, extension, programs)
+	return localReferences(workstationNamesForTargets(selected)), nil
+}
+
+func workstationReferencesForHarness(
+	ctx context.Context,
+	kube client.Client,
+	harness *t3v1alpha1.Harness,
+) ([]t3v1alpha1.LocalObjectReference, error) {
+	if len(harness.Spec.WorkstationRefs) != 0 {
+		return uniqueLocalReferences(harness.Spec.WorkstationRefs), nil
+	}
+	var list t3v1alpha1.WorkstationList
+	if err := kube.List(ctx, &list, client.InNamespace(harness.Namespace)); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(list.Items))
+	for index := range list.Items {
+		names = append(names, list.Items[index].Name)
+	}
+	return uniqueLocalReferences(localReferences(names)), nil
 }
 
 func uniqueLocalReferences(input []t3v1alpha1.LocalObjectReference) []t3v1alpha1.LocalObjectReference {

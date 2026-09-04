@@ -1,6 +1,26 @@
 # Upstream t3 contract for the operator
 
-Verified 2026-08-27 against the published `t3@0.0.34` npm artifact.
+Verified 2026-08-27 against the published `t3@0.0.34` npm artifact and
+re-checked on 2026-09-04 against `t3@0.0.38` (stable) and
+`t3@0.0.39-nightly.20260904.1276` (nightly).
+
+## 2026-09-04 re-verification
+
+- Every control surface below still exists in `0.0.38`: `server.updateSettings`,
+  `/api/auth/pairing-token`, `/oauth/token`, the `orchestration:operate`
+  scope, and `/api/orchestration/shell`.
+- The stable `BUILT_IN_DRIVERS` list is unchanged: `codex`, `claudeAgent`,
+  `cursor`, `grok`, `opencode`.
+- The nightly adds a sixth driver, `antigravity`. It runs Google's official
+  ACP agent, which t3 downloads into the environment on request (about 682 MB
+  compressed, 2 GB extracted, per platform) and keeps under the server state
+  directory. Auth methods are `oauth-personal`, `oauth-business`,
+  `gemini-api-key`, and `agent-platform`; `enabled` defaults to false upstream.
+  Each instance owns its Google profile, so multiple instances are supported.
+- The environment label still resolves from `/etc/machine-info`
+  `PRETTY_HOSTNAME`, then `hostnamectl --pretty`, then the hostname, then the
+  working directory name. No environment variable overrides it. The operator
+  therefore writes the Workstation name into `machine-info` by default.
 
 This document separates upstream t3 facts from container-wrapper behavior. It
 records the package contract and isolated auth, settings, provider, recovery,

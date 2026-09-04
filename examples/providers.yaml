@@ -1,0 +1,101 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: t3-code-config
+  namespace: agents
+type: Opaque
+stringData:
+  CLAUDE_CODE_OAUTH_TOKEN: replace-with-a-claude-oauth-token
+  GH_TOKEN: replace-with-a-github-token
+  LITELLM_API_KEY: replace-with-a-gateway-key
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Workstation
+metadata:
+  name: t3-code
+  namespace: agents
+spec:
+  providers:
+    codex:
+      enabled: true
+      models:
+        - gpt-5.6-sol
+    claude:
+      enabled: true
+      environment:
+        - name: CLAUDE_CODE_OAUTH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: t3-code-config
+              key: CLAUDE_CODE_OAUTH_TOKEN
+      config:
+        file:
+          effortLevel: xhigh
+          theme: dark
+    opencode:
+      enabled: true
+      models:
+        - litellm/minimax/MiniMax-M3
+      config:
+        file:
+          provider:
+            litellm:
+              npm: "@ai-sdk/openai-compatible"
+              name: LiteLLM
+              options:
+                baseURL: http://litellm.ai.svc.cluster.local:4000/v1
+                apiKey: "{env:LITELLM_API_KEY}"
+              models:
+                minimax/MiniMax-M3:
+                  name: MiniMax M3
+      environment:
+        - name: LITELLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: t3-code-config
+              key: LITELLM_API_KEY
+    cursor:
+      enabled: false
+    grok:
+      enabled: false
+    antigravity:
+      enabled: false
+  git:
+    userName: Example User
+    userEmail: user@example.test
+    githubUser: example-user
+    credentialSecretRef:
+      name: t3-code-config
+      key: GH_TOKEN
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: MCPServer
+metadata:
+  name: kubectl
+  namespace: agents
+spec:
+  config:
+    url: http://litellm.ai.svc.cluster.local:4000/mcp/kubectl/mcp
+  bearerTokenSecretRef:
+    name: t3-code-config
+    key: LITELLM_API_KEY
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Extension
+metadata:
+  name: agent-kit
+  namespace: agents
+spec:
+  source:
+    type: Git
+    git:
+      url: https://github.com/janpuc/agent-kit.git
+      commit: 0024da86a0710cad9e289035d1721fe319ce2aa9
+      path: skills
+      credentialSecretRef:
+        name: t3-code-config
+        key: GH_TOKEN
+    include:
+      - research
+      - tdd

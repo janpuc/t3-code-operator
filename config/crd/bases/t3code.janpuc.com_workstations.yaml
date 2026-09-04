@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: workstations.t3code.janpuc.com
 spec:
   group: t3code.janpuc.com
@@ -160,6 +160,95 @@ spec:
                 required:
                 - prettyHostname
                 type: object
+              providers:
+                additionalProperties:
+                  properties:
+                    accentColor:
+                      maxLength: 64
+                      type: string
+                    attachmentPolicy:
+                      default: {}
+                      properties:
+                        extensions:
+                          default: SameNamespace
+                          enum:
+                          - SameNamespace
+                          - None
+                          type: string
+                        mcpServers:
+                          default: SameNamespace
+                          enum:
+                          - SameNamespace
+                          - None
+                          type: string
+                      type: object
+                    config:
+                      type: object
+                      x-kubernetes-preserve-unknown-fields: true
+                    displayName:
+                      maxLength: 128
+                      type: string
+                    driver:
+                      pattern: ^[A-Za-z][A-Za-z0-9_-]{0,63}$
+                      type: string
+                    enabled:
+                      type: boolean
+                    environment:
+                      items:
+                        properties:
+                          name:
+                            maxLength: 253
+                            pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+                            type: string
+                          value:
+                            maxLength: 32768
+                            pattern: ^[^\x00]*$
+                            type: string
+                          valueFrom:
+                            properties:
+                              secretKeyRef:
+                                properties:
+                                  key:
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[-._A-Za-z0-9]+$
+                                    type: string
+                                  name:
+                                    maxLength: 253
+                                    minLength: 1
+                                    pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                type: object
+                            required:
+                            - secretKeyRef
+                            type: object
+                        required:
+                        - name
+                        type: object
+                        x-kubernetes-validations:
+                        - message: exactly one of value or valueFrom must be set
+                          rule: has(self.value) != has(self.valueFrom)
+                      maxItems: 128
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - name
+                      x-kubernetes-list-type: map
+                    models:
+                      items:
+                        maxLength: 256
+                        minLength: 1
+                        type: string
+                      maxItems: 64
+                      type: array
+                      x-kubernetes-list-type: set
+                  required:
+                  - enabled
+                  type: object
+                maxProperties: 32
+                type: object
               resources:
                 properties:
                   claims:
@@ -245,8 +334,10 @@ spec:
                 pattern: ^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$
                 type: string
               storage:
+                default: {}
                 properties:
                   data:
+                    default: {}
                     properties:
                       claimTemplate:
                         properties:
@@ -357,17 +448,18 @@ spec:
                               volumeName:
                                 type: string
                             type: object
-                        required:
-                        - spec
                         type: object
                         x-kubernetes-validations:
                         - message: ClaimTemplate volumeMode must be Filesystem
-                          rule: '!has(self.spec.volumeMode) || self.spec.volumeMode
-                            == ''Filesystem'''
+                          rule: '!has(self.spec) || !has(self.spec.volumeMode) ||
+                            self.spec.volumeMode == ''Filesystem'''
                       emptyDir:
                         properties:
                           medium:
                             type: string
+                          mode:
+                            format: int32
+                            type: integer
                           sizeLimit:
                             anyOf:
                             - type: integer
@@ -386,23 +478,23 @@ spec:
                         - name
                         type: object
                       type:
+                        default: ClaimTemplate
                         enum:
                         - ExistingClaim
                         - ClaimTemplate
                         - EmptyDir
                         type: string
-                    required:
-                    - type
                     type: object
                     x-kubernetes-validations:
-                    - message: exactly one data volume configuration must be set
+                    - message: at most one data volume configuration may be set
                       rule: '(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate)
-                        ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) == 1'
+                        ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) <= 1'
                     - message: data volume configuration must match type
-                      rule: 'self.type == ''ExistingClaim'' ? has(self.existingClaim)
-                        : self.type == ''ClaimTemplate'' ? has(self.claimTemplate)
-                        : has(self.emptyDir)'
+                      rule: '!has(self.type) || self.type == ''ClaimTemplate'' ? !has(self.existingClaim)
+                        && !has(self.emptyDir) : self.type == ''ExistingClaim'' ?
+                        has(self.existingClaim) : has(self.emptyDir)'
                   workspace:
+                    default: {}
                     properties:
                       claimTemplate:
                         properties:
@@ -513,17 +605,18 @@ spec:
                               volumeName:
                                 type: string
                             type: object
-                        required:
-                        - spec
                         type: object
                         x-kubernetes-validations:
                         - message: ClaimTemplate volumeMode must be Filesystem
-                          rule: '!has(self.spec.volumeMode) || self.spec.volumeMode
-                            == ''Filesystem'''
+                          rule: '!has(self.spec) || !has(self.spec.volumeMode) ||
+                            self.spec.volumeMode == ''Filesystem'''
                       emptyDir:
                         properties:
                           medium:
                             type: string
+                          mode:
+                            format: int32
+                            type: integer
                           sizeLimit:
                             anyOf:
                             - type: integer
@@ -559,28 +652,24 @@ spec:
                         - server
                         type: object
                       type:
+                        default: ClaimTemplate
                         enum:
                         - ExistingClaim
                         - ClaimTemplate
                         - NFS
                         - EmptyDir
                         type: string
-                    required:
-                    - type
                     type: object
                     x-kubernetes-validations:
-                    - message: exactly one workspace volume configuration must be
-                        set
+                    - message: at most one workspace volume configuration may be set
                       rule: '(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate)
                         ? 1 : 0) + (has(self.nfs) ? 1 : 0) + (has(self.emptyDir) ?
-                        1 : 0) == 1'
+                        1 : 0) <= 1'
                     - message: workspace volume configuration must match type
-                      rule: 'self.type == ''ExistingClaim'' ? has(self.existingClaim)
-                        : self.type == ''ClaimTemplate'' ? has(self.claimTemplate)
-                        : self.type == ''NFS'' ? has(self.nfs) : has(self.emptyDir)'
-                required:
-                - data
-                - workspace
+                      rule: '!has(self.type) || self.type == ''ClaimTemplate'' ? !has(self.existingClaim)
+                        && !has(self.nfs) && !has(self.emptyDir) : self.type == ''ExistingClaim''
+                        ? has(self.existingClaim) : self.type == ''NFS'' ? has(self.nfs)
+                        : has(self.emptyDir)'
                 type: object
               tools:
                 items:
@@ -750,17 +839,13 @@ spec:
                         minLength: 1
                         pattern: ^[A-Za-z0-9][A-Za-z0-9._-]*$
                         type: string
-                    required:
-                    - passwordSecretRef
                     type: object
                 type: object
-            required:
-            - image
-            - storage
             type: object
             x-kubernetes-validations:
             - message: data EmptyDir requires disposable=true
-              rule: self.disposable || self.storage.data.type != 'EmptyDir'
+              rule: self.disposable || !has(self.storage) || !has(self.storage.data)
+                || !has(self.storage.data.type) || self.storage.data.type != 'EmptyDir'
             - message: env contains a reserved runtime variable
               rule: '!has(self.env) || self.env.all(e, ![''HOME'', ''PATH'', ''T3CODE_HOME'',
                 ''XDG_CACHE_HOME'', ''XDG_CONFIG_HOME'', ''XDG_DATA_HOME'', ''GH_CONFIG_DIR'',
@@ -768,11 +853,17 @@ spec:
                 n == e.name))'
             - message: SMB workspace sharing requires a claim-backed workspace
               rule: '!has(self.workspaceSharing) || !has(self.workspaceSharing.smb)
+                || !has(self.storage) || !has(self.storage.workspace) || !has(self.storage.workspace.type)
                 || self.storage.workspace.type in [''ExistingClaim'', ''ClaimTemplate'']'
             - message: SMB workspace and data must use different claims
               rule: '!has(self.workspaceSharing) || !has(self.workspaceSharing.smb)
-                || self.storage.data.type != ''ExistingClaim'' || self.storage.workspace.type
-                != ''ExistingClaim'' || self.storage.data.existingClaim.name != self.storage.workspace.existingClaim.name'
+                || !has(self.storage) || !has(self.storage.data) || !has(self.storage.workspace)
+                || !has(self.storage.data.existingClaim) || !has(self.storage.workspace.existingClaim)
+                || self.storage.data.existingClaim.name != self.storage.workspace.existingClaim.name'
+            - message: provider names must be lowercase DNS labels that start with
+                a letter
+              rule: '!has(self.providers) || self.providers.all(name, name.matches(''^[a-z]([-a-z0-9]*[a-z0-9])?$'')
+                && size(name) <= 63)'
           status:
             properties:
               conditions:

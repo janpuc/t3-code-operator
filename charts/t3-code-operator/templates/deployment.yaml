@@ -45,6 +45,9 @@ spec:
             - --health-probe-bind-address=:8081
             - --mise-cache-directory=/var/cache/t3-code-operator/mise
             - --smb-image={{ include "t3-code-operator.smbImage" . }}
+            {{- with include "t3-code-operator.workstationImage" . }}
+            - --default-workstation-image={{ . }}
+            {{- end }}
           env:
             - name: HOME
               value: /tmp/home

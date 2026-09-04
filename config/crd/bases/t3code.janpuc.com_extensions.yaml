@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: extensions.t3code.janpuc.com
 spec:
   group: t3code.janpuc.com
@@ -50,7 +50,6 @@ spec:
                   - name
                   type: object
                 maxItems: 64
-                minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
                 - name
@@ -223,7 +222,6 @@ spec:
                     ? has(self.oci) : self.type == ''Marketplace'' ? has(self.marketplace)
                     : has(self.githubRelease)'
             required:
-            - harnessRefs
             - source
             type: object
           status:

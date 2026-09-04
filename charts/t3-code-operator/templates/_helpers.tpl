@@ -57,6 +57,12 @@ app.kubernetes.io/component: operator
 {{- end -}}
 {{- end -}}
 
+{{- define "t3-code-operator.workstationImage" -}}
+{{- if .Values.workstation.image.digest -}}
+{{- printf "%s@%s" .Values.workstation.image.repository .Values.workstation.image.digest -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "t3-code-operator.secretResourceNames" -}}
 {{- $names := list -}}
 {{- range .Values.rbac.secretResourceNames -}}

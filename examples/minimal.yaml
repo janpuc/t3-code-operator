@@ -1,0 +1,10 @@
+---
+apiVersion: t3code.janpuc.com/v1alpha1
+kind: Workstation
+metadata:
+  name: t3-code
+  namespace: agents
+spec:
+  providers:
+    codex:
+      enabled: true
