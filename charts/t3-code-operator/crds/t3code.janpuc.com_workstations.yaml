@@ -489,9 +489,9 @@ spec:
                       rule: '(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate)
                         ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) <= 1'
                     - message: data volume configuration must match type
-                      rule: '!has(self.type) || self.type == ''ClaimTemplate'' ? !has(self.existingClaim)
-                        && !has(self.emptyDir) : self.type == ''ExistingClaim'' ?
-                        has(self.existingClaim) : has(self.emptyDir)'
+                      rule: '!has(self.type) || (self.type == ''ClaimTemplate'' ?
+                        (!has(self.existingClaim) && !has(self.emptyDir)) : (self.type
+                        == ''ExistingClaim'' ? has(self.existingClaim) : has(self.emptyDir)))'
                   workspace:
                     default: {}
                     properties:
@@ -664,10 +664,10 @@ spec:
                         ? 1 : 0) + (has(self.nfs) ? 1 : 0) + (has(self.emptyDir) ?
                         1 : 0) <= 1'
                     - message: workspace volume configuration must match type
-                      rule: '!has(self.type) || self.type == ''ClaimTemplate'' ? !has(self.existingClaim)
-                        && !has(self.nfs) && !has(self.emptyDir) : self.type == ''ExistingClaim''
-                        ? has(self.existingClaim) : self.type == ''NFS'' ? has(self.nfs)
-                        : has(self.emptyDir)'
+                      rule: '!has(self.type) || (self.type == ''ClaimTemplate'' ?
+                        (!has(self.existingClaim) && !has(self.nfs) && !has(self.emptyDir))
+                        : (self.type == ''ExistingClaim'' ? has(self.existingClaim)
+                        : (self.type == ''NFS'' ? has(self.nfs) : has(self.emptyDir))))'
                 type: object
               tools:
                 items:

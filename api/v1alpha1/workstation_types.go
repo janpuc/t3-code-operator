@@ -101,7 +101,7 @@ const (
 )
 
 // +kubebuilder:validation:XValidation:rule="(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate) ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) <= 1",message="at most one data volume configuration may be set"
-// +kubebuilder:validation:XValidation:rule="!has(self.type) || self.type == 'ClaimTemplate' ? !has(self.existingClaim) && !has(self.emptyDir) : self.type == 'ExistingClaim' ? has(self.existingClaim) : has(self.emptyDir)",message="data volume configuration must match type"
+// +kubebuilder:validation:XValidation:rule="!has(self.type) || (self.type == 'ClaimTemplate' ? (!has(self.existingClaim) && !has(self.emptyDir)) : (self.type == 'ExistingClaim' ? has(self.existingClaim) : has(self.emptyDir)))",message="data volume configuration must match type"
 type DataVolumeSource struct {
 	Type DataVolumeType `json:"type,omitempty"`
 
@@ -123,7 +123,7 @@ const (
 )
 
 // +kubebuilder:validation:XValidation:rule="(has(self.existingClaim) ? 1 : 0) + (has(self.claimTemplate) ? 1 : 0) + (has(self.nfs) ? 1 : 0) + (has(self.emptyDir) ? 1 : 0) <= 1",message="at most one workspace volume configuration may be set"
-// +kubebuilder:validation:XValidation:rule="!has(self.type) || self.type == 'ClaimTemplate' ? !has(self.existingClaim) && !has(self.nfs) && !has(self.emptyDir) : self.type == 'ExistingClaim' ? has(self.existingClaim) : self.type == 'NFS' ? has(self.nfs) : has(self.emptyDir)",message="workspace volume configuration must match type"
+// +kubebuilder:validation:XValidation:rule="!has(self.type) || (self.type == 'ClaimTemplate' ? (!has(self.existingClaim) && !has(self.nfs) && !has(self.emptyDir)) : (self.type == 'ExistingClaim' ? has(self.existingClaim) : (self.type == 'NFS' ? has(self.nfs) : has(self.emptyDir))))",message="workspace volume configuration must match type"
 type WorkspaceVolumeSource struct {
 	Type WorkspaceVolumeType `json:"type,omitempty"`
 
