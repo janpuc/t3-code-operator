@@ -133,7 +133,7 @@ helm install t3-code-operator \
   oci://ghcr.io/janpuc/charts/t3-code-operator \
   --namespace t3-code-system \
   --create-namespace \
-  --version 0.1.7
+  --version 0.2.0
 ```
 
 Pin the operator and SMB images to the digests from the release notes. The

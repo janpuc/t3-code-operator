@@ -5,7 +5,7 @@ operator:
   replicaCount: 1
   image:
     repository: ghcr.io/janpuc/t3-code-operator
-    tag: 0.1.7
+    tag: 0.2.0
     digest: ""
     pullPolicy: IfNotPresent
   imagePullSecrets: []
@@ -27,7 +27,7 @@ operator:
 smb:
   image:
     repository: ghcr.io/janpuc/t3-code-smbd
-    tag: 0.1.7
+    tag: 0.2.0
     digest: ""
 
 workstation:
