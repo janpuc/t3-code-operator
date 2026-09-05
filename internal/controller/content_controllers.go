@@ -71,9 +71,12 @@ func (reconciler *HarnessReconciler) Reconcile(ctx context.Context, request ctrl
 	} else {
 		harness.Status.AdapterSupport = adapterSupportLevel(support)
 		setCondition(&harness.Status.Conditions, conditionResolved, metav1.ConditionTrue, "Resolved", "The Harness configuration resolved.", harness.Generation)
-		if attachmentsReady {
+		switch {
+		case len(attachments) == 0:
+			setNoTargetsCondition(&harness.Status.Conditions, "Harness", harness.Generation)
+		case attachmentsReady:
 			setCondition(&harness.Status.Conditions, conditionReady, metav1.ConditionTrue, "AttachmentsReady", "All Workstation attachments are ready.", harness.Generation)
-		} else {
+		default:
 			setCondition(&harness.Status.Conditions, conditionReady, metav1.ConditionFalse, "AttachmentsPending", "One or more Workstation attachments are not ready.", harness.Generation)
 		}
 	}
@@ -126,7 +129,11 @@ func (reconciler *ExtensionReconciler) Reconcile(ctx context.Context, request ct
 		}
 		extension.Status.ResolvedSource = cacheKey
 		setCondition(&extension.Status.Conditions, conditionResolved, metav1.ConditionTrue, "Resolved", "The Extension source resolved.", extension.Generation)
-		setAttachmentReadyCondition(&extension.Status.Conditions, attachmentsReady, "Extension", extension.Generation)
+		if len(attachments) == 0 {
+			setNoTargetsCondition(&extension.Status.Conditions, "Extension", extension.Generation)
+		} else {
+			setAttachmentReadyCondition(&extension.Status.Conditions, attachmentsReady, "Extension", extension.Generation)
+		}
 	}
 	if reflect.DeepEqual(before.Status, extension.Status) {
 		return ctrl.Result{}, nil
@@ -164,7 +171,11 @@ func (reconciler *MCPServerReconciler) Reconcile(ctx context.Context, request ct
 		setCondition(&server.Status.Conditions, conditionReady, metav1.ConditionFalse, "ValidationFailed", "The MCP server is not ready.", server.Generation)
 	} else {
 		setCondition(&server.Status.Conditions, conditionResolved, metav1.ConditionTrue, "Resolved", "The MCP server configuration resolved.", server.Generation)
-		setAttachmentReadyCondition(&server.Status.Conditions, attachmentsReady, "MCP server", server.Generation)
+		if len(attachments) == 0 {
+			setNoTargetsCondition(&server.Status.Conditions, "MCP server", server.Generation)
+		} else {
+			setAttachmentReadyCondition(&server.Status.Conditions, attachmentsReady, "MCP server", server.Generation)
+		}
 	}
 	if reflect.DeepEqual(before.Status, server.Status) {
 		return ctrl.Result{}, nil
@@ -201,6 +212,15 @@ func (reconciler *HarnessReconciler) workstationAttachments(
 		if err != nil {
 			return nil, false, err
 		}
+		conflict, err := reconciler.harnessInstanceConflict(ctx, harness, workstation)
+		if err != nil {
+			return nil, false, err
+		}
+		if conflict {
+			attachments = append(attachments, rejectedAttachment(reference.Name, "InstanceIDConflict", harness.Generation))
+			ready = false
+			continue
+		}
 		attachment := acceptedAttachment(
 			reference.Name,
 			workstation.Status.DesiredRevision,
@@ -214,7 +234,32 @@ func (reconciler *HarnessReconciler) workstationAttachments(
 		attachments = append(attachments, attachment)
 	}
 	sortAttachmentStatuses(attachments)
-	return attachments, ready, nil
+	return attachments, ready && len(attachments) != 0, nil
+}
+
+func (reconciler *HarnessReconciler) harnessInstanceConflict(
+	ctx context.Context,
+	harness *t3v1alpha1.Harness,
+	workstation *t3v1alpha1.Workstation,
+) (bool, error) {
+	instanceID := harnessInstanceID(harness)
+	if _, inline := workstation.Spec.Providers[instanceID]; inline {
+		return true, nil
+	}
+	var list t3v1alpha1.HarnessList
+	if err := reconciler.List(ctx, &list, client.InNamespace(harness.Namespace)); err != nil {
+		return false, err
+	}
+	for index := range list.Items {
+		other := &list.Items[index]
+		if other.Name == harness.Name || other.Name > harness.Name || !other.DeletionTimestamp.IsZero() {
+			continue
+		}
+		if harnessInstanceID(other) == instanceID && harnessAttachesToWorkstation(other, workstation.Name) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (reconciler *ExtensionReconciler) harnessAttachments(
@@ -268,6 +313,11 @@ func harnessAttachmentStatuses(
 			ready = false
 			continue
 		}
+		if target.driverErr != nil {
+			attachments = append(attachments, rejectedAttachment(target.attachmentName, "DriverUnresolved", generation))
+			ready = false
+			continue
+		}
 		if !programs(target.driver) {
 			attachments = append(attachments, rejectedAttachment(target.attachmentName, "DialectUnavailable", generation))
 			ready = false
@@ -280,7 +330,7 @@ func harnessAttachmentStatuses(
 		attachments = append(attachments, attachment)
 	}
 	sortAttachmentStatuses(attachments)
-	return attachments, ready, nil
+	return attachments, ready && len(attachments) != 0, nil
 }
 
 func providerTargetAttachment(target providerTarget, generation int64) t3v1alpha1.AttachmentStatus {
@@ -332,6 +382,10 @@ func setAttachmentReadyCondition(conditions *[]metav1.Condition, ready bool, sub
 	} else {
 		setCondition(conditions, conditionReady, metav1.ConditionFalse, "AttachmentsPending", "One or more "+subject+" attachments are not ready.", generation)
 	}
+}
+
+func setNoTargetsCondition(conditions *[]metav1.Condition, subject string, generation int64) {
+	setCondition(conditions, conditionReady, metav1.ConditionFalse, "NoTargets", "No provider accepts this "+subject+" attachment.", generation)
 }
 
 func attachmentIsReady(attachment t3v1alpha1.AttachmentStatus) bool {

@@ -19,6 +19,7 @@ type providerTarget struct {
 	refName        string
 	workstations   []string
 	driver         string
+	driverErr      error
 	policy         t3v1alpha1.AttachmentPolicy
 	harness        *t3v1alpha1.Harness
 	workstation    *t3v1alpha1.Workstation
@@ -29,7 +30,7 @@ func (target providerTarget) inline() bool {
 }
 
 func inlineProviderAttachmentName(workstation, provider string) string {
-	return workstation + inlineProviderSeparator + provider
+	return boundedResourceName(workstation, "") + inlineProviderSeparator + provider
 }
 
 func sortedProviderNames(providers map[string]t3v1alpha1.ProviderSpec) []string {
@@ -167,12 +168,13 @@ func listProviderTargets(ctx context.Context, reader client.Reader, namespace st
 		workstationNames = append(workstationNames, workstation.Name)
 		for _, name := range sortedProviderNames(workstation.Spec.Providers) {
 			spec := workstation.Spec.Providers[name]
-			driver, _ := resolveProviderDriver(name, spec.Driver)
+			driver, err := resolveProviderDriver(name, spec.Driver)
 			targets = append(targets, providerTarget{
 				attachmentName: inlineProviderAttachmentName(workstation.Name, name),
 				refName:        name,
 				workstations:   []string{workstation.Name},
 				driver:         driver,
+				driverErr:      err,
 				policy:         spec.AttachmentPolicy,
 				workstation:    workstation,
 			})
@@ -192,12 +194,13 @@ func listProviderTargets(ctx context.Context, reader client.Reader, namespace st
 				names = append(names, reference.Name)
 			}
 		}
-		driver, _ := harnessDriver(harness)
+		driver, err := harnessDriver(harness)
 		targets = append(targets, providerTarget{
 			attachmentName: harness.Name,
 			refName:        harness.Name,
 			workstations:   names,
 			driver:         driver,
+			driverErr:      err,
 			policy:         harness.Spec.AttachmentPolicy,
 			harness:        harness,
 		})

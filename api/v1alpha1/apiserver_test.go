@@ -139,6 +139,26 @@ func assertMinimalWorkstationIsDefaulted(t *testing.T, ctx context.Context, apiC
 	if err := apiClient.Create(ctx, mismatched); err == nil || !apierrors.IsInvalid(err) {
 		t.Fatalf("a storage branch that contradicts its type was accepted: %v", err)
 	}
+	for name, spec := range map[string]WorkstationSpec{
+		"inferred-emptydir-data": {
+			Providers: map[string]ProviderSpec{"codex": {Enabled: true}},
+			Storage:   WorkstationStorage{Data: DataVolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		},
+		"inferred-nfs-with-smb": {
+			Providers:        map[string]ProviderSpec{"codex": {Enabled: true}},
+			Storage:          WorkstationStorage{Workspace: WorkspaceVolumeSource{NFS: &NFSVolumeSource{Server: "nas.internal", ExportPath: "/workspace"}}},
+			WorkspaceSharing: &WorkspaceSharing{SMB: &SMBWorkspaceShare{}},
+		},
+	} {
+		object := &Workstation{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}, Spec: spec}
+		err := apiClient.Create(ctx, object)
+		if err == nil || !apierrors.IsInvalid(err) {
+			t.Fatalf("Workstation %q slipped past a guard that only checked the explicit type: %v", name, err)
+		}
+		if strings.Contains(err.Error(), "no such key") {
+			t.Fatalf("Workstation %q was rejected by a CEL runtime error instead of its rule message: %v", name, err)
+		}
+	}
 
 	shared := &Workstation{
 		ObjectMeta: metav1.ObjectMeta{Name: "minimal-smb", Namespace: namespace},

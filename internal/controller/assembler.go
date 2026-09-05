@@ -69,12 +69,14 @@ func (assembler *Assembler) Assemble(
 		resolved render.Harness
 	}
 	providers := make([]attachedProvider, 0, len(workstation.Spec.Providers)+len(harnessList.Items))
+	instanceIDs := make(map[string]struct{}, len(workstation.Spec.Providers))
 	for _, name := range sortedProviderNames(workstation.Spec.Providers) {
 		spec := workstation.Spec.Providers[name]
 		resolved, err := convertProvider(workstation.Namespace, name, spec)
 		if err != nil {
 			return Assembly{}, err
 		}
+		instanceIDs[resolved.InstanceID] = struct{}{}
 		providers = append(providers, attachedProvider{refName: name, policy: spec.AttachmentPolicy, resolved: resolved})
 	}
 	for index := range harnessList.Items {
@@ -84,34 +86,61 @@ func (assembler *Assembler) Assemble(
 		}
 		resolved, err := convertHarness(workstation.Namespace, harness)
 		if err != nil {
-			return Assembly{}, err
+			continue
 		}
+		if _, taken := instanceIDs[resolved.InstanceID]; taken {
+			continue
+		}
+		if _, err := render.ValidateHarness(workstation.Namespace, resolved); err != nil {
+			continue
+		}
+		instanceIDs[resolved.InstanceID] = struct{}{}
 		providers = append(providers, attachedProvider{refName: harness.Name, policy: harness.Spec.AttachmentPolicy, resolved: resolved})
+	}
+
+	extensions := make([]render.Extension, 0, len(extensionList.Items))
+	extensionRefs := make([][]t3v1alpha1.LocalObjectReference, 0, len(extensionList.Items))
+	for index := range extensionList.Items {
+		extension := &extensionList.Items[index]
+		if !extension.DeletionTimestamp.IsZero() {
+			continue
+		}
+		converted := convertExtension(workstation.Namespace, extension)
+		if err := render.ValidateExtension(workstation.Namespace, converted); err != nil {
+			continue
+		}
+		extensions = append(extensions, converted)
+		extensionRefs = append(extensionRefs, extension.Spec.HarnessRefs)
+	}
+	servers := make([]render.MCPServer, 0, len(serverList.Items))
+	serverRefs := make([][]t3v1alpha1.LocalObjectReference, 0, len(serverList.Items))
+	for index := range serverList.Items {
+		server := &serverList.Items[index]
+		if !server.DeletionTimestamp.IsZero() {
+			continue
+		}
+		converted := convertMCPServer(workstation.Namespace, server)
+		if err := render.ValidateMCPServer(workstation.Namespace, converted); err != nil {
+			continue
+		}
+		servers = append(servers, converted)
+		serverRefs = append(serverRefs, server.Spec.HarnessRefs)
 	}
 
 	harnesses := make([]render.Harness, 0, len(providers))
 	for _, provider := range providers {
 		resolved := provider.resolved
-		for index := range extensionList.Items {
-			extension := &extensionList.Items[index]
-			if !extension.DeletionTimestamp.IsZero() {
-				continue
-			}
-			converted := convertExtension(workstation.Namespace, extension)
+		for index, converted := range extensions {
 			programs := func(driver string) bool {
 				return render.ProgramsExtensionSource(driver, converted.Source.Type)
 			}
-			if attachmentSelects(extension.Spec.HarnessRefs, provider.refName, resolved.Driver, provider.policy.Extensions, programs) {
+			if attachmentSelects(extensionRefs[index], provider.refName, resolved.Driver, provider.policy.Extensions, programs) {
 				resolved.Extensions = append(resolved.Extensions, converted)
 			}
 		}
-		for index := range serverList.Items {
-			server := &serverList.Items[index]
-			if !server.DeletionTimestamp.IsZero() {
-				continue
-			}
-			if attachmentSelects(server.Spec.HarnessRefs, provider.refName, resolved.Driver, provider.policy.MCPServers, render.ProgramsMCPServers) {
-				resolved.MCPServers = append(resolved.MCPServers, convertMCPServer(workstation.Namespace, server))
+		for index, converted := range servers {
+			if attachmentSelects(serverRefs[index], provider.refName, resolved.Driver, provider.policy.MCPServers, render.ProgramsMCPServers) {
+				resolved.MCPServers = append(resolved.MCPServers, converted)
 			}
 		}
 		harnesses = append(harnesses, resolved)

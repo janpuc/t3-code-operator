@@ -7,8 +7,8 @@ MCP servers, and persistent Workstations as CRDs.
 ## Status
 
 Phases 1 through 4 are implemented and pass local contracts. These phases cover
-the API, five adapters, transactional sidecar, upstream t3 control, and four
-controllers.
+the API, renderer adapters for all six upstream drivers, the transactional
+sidecar, upstream t3 control, and four controllers.
 
 Phase 5 has a pinned multi-architecture image definition, stable and nightly
 locks, signed-image workflows, and a Helm chart. The chart contract covers NFS,

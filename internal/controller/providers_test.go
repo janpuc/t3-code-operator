@@ -211,3 +211,190 @@ func TestMCPServerAttachesToInlineProvidersByDefault(t *testing.T) {
 		t.Fatalf("implicit attachment is not ready: %#v", stored.Status)
 	}
 }
+
+func TestAssemblerIsolatesInvalidAndConflictingObjects(t *testing.T) {
+	scheme := controllerTestScheme(t)
+	workstation := controllerTestWorkstation()
+	workstation.Spec.Tools = nil
+	workstation.Spec.Providers = map[string]t3v1alpha1.ProviderSpec{"codex": {Enabled: true}}
+	stray := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "helper"}}
+	conflicting := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "codex"}}
+	dotted := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "codex.review"}, Spec: t3v1alpha1.HarnessSpec{Driver: "codex"}}
+	healthy := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "claude"}}
+	typo := &t3v1alpha1.MCPServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "typo"},
+		Spec:       t3v1alpha1.MCPServerSpec{Config: jsonObject(`{"uri":"https://mcp.example.test"}`)},
+	}
+	good := &t3v1alpha1.MCPServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "good"},
+		Spec:       t3v1alpha1.MCPServerSpec{Config: jsonObject(`{"url":"https://mcp.example.test/good"}`)},
+	}
+	broken := &t3v1alpha1.Extension{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "broken"},
+		Spec: t3v1alpha1.ExtensionSpec{Source: t3v1alpha1.ExtensionSource{
+			Type: t3v1alpha1.ExtensionSourceGit,
+			Git:  &t3v1alpha1.GitExtensionSource{URL: "https://example.test/skills.git", Commit: "not-a-commit"},
+		}},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).WithObjects(workstation, stray, conflicting, dotted, healthy, typo, good, broken).Build()
+
+	assembly, err := (&Assembler{Reader: kube}).Assemble(context.Background(), workstation)
+	if err != nil {
+		t.Fatalf("one invalid object must not fail the whole Workstation: %v", err)
+	}
+	instances := assembly.Manifest.ProviderInstances
+	if len(instances) != 2 || instances["codex"].Driver != "codex" || instances["claude"].Driver != "claudeAgent" {
+		t.Fatalf("unexpected provider set after isolation: %#v", instances)
+	}
+	for _, file := range assembly.Manifest.Files {
+		if strings.Contains(file.Content, "mcp.example.test\\\"") || strings.Contains(file.Content, "typo") {
+			t.Fatalf("an invalid MCP server reached the rendered manifest: %s", file.Content)
+		}
+	}
+	served := false
+	for _, file := range assembly.Manifest.Files {
+		if strings.Contains(file.Content, "mcp.example.test/good") {
+			served = true
+		}
+	}
+	if !served {
+		t.Fatal("the valid MCP server was not rendered")
+	}
+	for _, activation := range assembly.Manifest.Extensions {
+		if activation.Name == "broken" {
+			t.Fatal("an invalid Extension reached the rendered manifest")
+		}
+	}
+}
+
+func TestHarnessReportsInstanceIDConflictWithInlineProvider(t *testing.T) {
+	scheme := controllerTestScheme(t)
+	workstation := controllerTestWorkstation()
+	workstation.Spec.Tools = nil
+	workstation.Spec.Providers = map[string]t3v1alpha1.ProviderSpec{"codex": {Enabled: true}}
+	harness := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "codex", Generation: 1}}
+	kube := fake.NewClientBuilder().WithScheme(scheme).
+		WithStatusSubresource(&t3v1alpha1.Workstation{}, &t3v1alpha1.Harness{}).
+		WithObjects(workstation, harness).
+		Build()
+	if _, err := (&HarnessReconciler{Client: kube}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "agents", Name: "codex"}}); err != nil {
+		t.Fatal(err)
+	}
+	stored := &t3v1alpha1.Harness{}
+	if err := kube.Get(context.Background(), types.NamespacedName{Namespace: "agents", Name: "codex"}, stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Status.Attachments) != 1 || attachmentReason(stored.Status.Attachments[0]) != "InstanceIDConflict" {
+		t.Fatalf("conflict was not reported: %#v", stored.Status.Attachments)
+	}
+}
+
+func TestContentWithNoAcceptingProviderIsNotReady(t *testing.T) {
+	scheme := controllerTestScheme(t)
+	workstation := controllerTestWorkstation()
+	workstation.Spec.Tools = nil
+	workstation.Spec.Providers = map[string]t3v1alpha1.ProviderSpec{"cursor": {Enabled: true}}
+	server := &t3v1alpha1.MCPServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "remote", Generation: 1},
+		Spec:       t3v1alpha1.MCPServerSpec{Config: jsonObject(`{"url":"https://mcp.example.test"}`)},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).
+		WithStatusSubresource(&t3v1alpha1.Workstation{}, &t3v1alpha1.MCPServer{}).
+		WithObjects(workstation, server).
+		Build()
+	if _, err := (&MCPServerReconciler{Client: kube}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "agents", Name: "remote"}}); err != nil {
+		t.Fatal(err)
+	}
+	stored := &t3v1alpha1.MCPServer{}
+	if err := kube.Get(context.Background(), types.NamespacedName{Namespace: "agents", Name: "remote"}, stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Status.Attachments) != 0 || conditionIsTrue(stored.Status.Conditions, conditionReady) {
+		t.Fatalf("an MCP server attached nowhere reported ready: %#v", stored.Status)
+	}
+	if reason := conditionReasonFor(stored.Status.Conditions, conditionReady); reason != "NoTargets" {
+		t.Fatalf("unexpected readiness reason %q", reason)
+	}
+}
+
+func TestUnresolvedDriverIsReportedAsSuch(t *testing.T) {
+	scheme := controllerTestScheme(t)
+	workstation := controllerTestWorkstation()
+	workstation.Spec.Tools = nil
+	helper := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "helper"}}
+	extension := &t3v1alpha1.Extension{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "skills", Generation: 1},
+		Spec: t3v1alpha1.ExtensionSpec{
+			Source: t3v1alpha1.ExtensionSource{
+				Type: t3v1alpha1.ExtensionSourceGit,
+				Git:  &t3v1alpha1.GitExtensionSource{URL: "https://example.test/skills.git", Commit: strings.Repeat("b", 40)},
+			},
+			HarnessRefs: []t3v1alpha1.LocalObjectReference{{Name: "helper"}},
+		},
+	}
+	kube := fake.NewClientBuilder().WithScheme(scheme).
+		WithStatusSubresource(&t3v1alpha1.Workstation{}, &t3v1alpha1.Harness{}, &t3v1alpha1.Extension{}).
+		WithObjects(workstation, helper, extension).
+		Build()
+	if _, err := (&ExtensionReconciler{Client: kube}).Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "agents", Name: "skills"}}); err != nil {
+		t.Fatal(err)
+	}
+	stored := &t3v1alpha1.Extension{}
+	if err := kube.Get(context.Background(), types.NamespacedName{Namespace: "agents", Name: "skills"}, stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Status.Attachments) != 1 || attachmentReason(stored.Status.Attachments[0]) != "DriverUnresolved" {
+		t.Fatalf("unresolved driver was not reported: %#v", stored.Status.Attachments)
+	}
+}
+
+func TestInlineAttachmentNamesStayWithinTheStatusLimit(t *testing.T) {
+	name := inlineProviderAttachmentName(strings.Repeat("w", 250), "codex")
+	if len(name) > 253 || !strings.HasSuffix(name, "/codex") {
+		t.Fatalf("attachment name is not bounded: %d characters", len(name))
+	}
+}
+
+func attachmentReason(attachment t3v1alpha1.AttachmentStatus) string {
+	return conditionReasonFor(attachment.Conditions, conditionAccepted)
+}
+
+func conditionReasonFor(conditions []metav1.Condition, conditionType string) string {
+	for _, condition := range conditions {
+		if condition.Type == conditionType {
+			return condition.Reason
+		}
+	}
+	return ""
+}
+
+func TestSecondHarnessWithTheSameInstanceIDReportsTheConflict(t *testing.T) {
+	scheme := controllerTestScheme(t)
+	workstation := controllerTestWorkstation()
+	workstation.Spec.Tools = nil
+	first := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "first", Generation: 1}, Spec: t3v1alpha1.HarnessSpec{InstanceID: "same", Driver: "codex"}}
+	second := &t3v1alpha1.Harness{ObjectMeta: metav1.ObjectMeta{Namespace: "agents", Name: "second", Generation: 1}, Spec: t3v1alpha1.HarnessSpec{InstanceID: "same", Driver: "codex"}}
+	kube := fake.NewClientBuilder().WithScheme(scheme).
+		WithStatusSubresource(&t3v1alpha1.Workstation{}, &t3v1alpha1.Harness{}).
+		WithObjects(workstation, first, second).
+		Build()
+	reconciler := &HarnessReconciler{Client: kube}
+	for _, name := range []string{"first", "second"} {
+		if _, err := reconciler.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "agents", Name: name}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stored := &t3v1alpha1.Harness{}
+	if err := kube.Get(context.Background(), types.NamespacedName{Namespace: "agents", Name: "second"}, stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Status.Attachments) != 1 || attachmentReason(stored.Status.Attachments[0]) != "InstanceIDConflict" {
+		t.Fatalf("the losing Harness did not report its conflict: %#v", stored.Status.Attachments)
+	}
+	if err := kube.Get(context.Background(), types.NamespacedName{Namespace: "agents", Name: "first"}, stored); err != nil {
+		t.Fatal(err)
+	}
+	if len(stored.Status.Attachments) != 1 || attachmentReason(stored.Status.Attachments[0]) != "Accepted" {
+		t.Fatalf("the winning Harness was not accepted: %#v", stored.Status.Attachments)
+	}
+}

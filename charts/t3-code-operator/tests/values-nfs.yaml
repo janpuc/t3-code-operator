@@ -39,6 +39,15 @@ workstations:
         policy: WaitForIdle
         timeout: 30m
         timeoutAction: Block
+      providers:
+        claude:
+          enabled: true
+          environment:
+            - name: CLAUDE_CODE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: inline-provider-secrets
+                  key: token
 
 harnesses:
   - name: codex
@@ -53,6 +62,15 @@ harnesses:
               key: token
       workstationRefs:
         - name: primary
+
+mcpServers:
+  - name: gateway
+    spec:
+      config:
+        url: https://mcp.example.test/gateway
+      bearerTokenSecretRef:
+        name: bearer-secrets
+        key: token
 
 extraObjects:
   - apiVersion: v1

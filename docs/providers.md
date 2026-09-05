@@ -11,7 +11,7 @@ it. Every provider is opt-in through an explicit `enabled` value.
 | `opencode` | `opencode` | Supported | Whatever the configured provider needs, usually a gateway key in `environment` |
 | `cursor` | `cursor` | Alpha | Cursor login inside the pod |
 | `grok` | `grok` | Alpha | Grok login inside the pod |
-| `antigravity` | `antigravity` | Alpha | Google sign-in from the T3 client, or an API key in `config` |
+| `antigravity` | `antigravity` | Alpha | Google sign-in from the T3 client |
 
 Supported drivers receive rendered MCP servers and Extension activations in
 their own dialect. Alpha drivers keep upstream provider settings only; the
@@ -103,9 +103,15 @@ antigravity:
 T3 downloads Google's official ACP runtime into the environment on
 **Install Antigravity** and keeps it on the retained `/data` claim; the
 operator does not bake the multi-gigabyte runtime into its image. Sign in with
-Google from the T3 client, or set `authMethod`, `apiKey`, `gcpProject`, and
-`gcpLocation` in `config` for the key-based methods. Each instance owns its
-Google profile, so several Antigravity instances can coexist.
+Google from the T3 client. Each instance owns its Google profile, so several
+Antigravity instances can coexist.
+
+The key-based methods (`gemini-api-key`, `agent-platform`) are not available
+through the operator yet: upstream reads the key from the provider settings
+themselves, ignores ambient environment variables, and the renderer refuses a
+literal `apiKey` in `config` because rendered output must never contain a
+secret. Setting one puts the Workstation into ResolutionFailed until it is
+removed.
 
 ## Git identity
 
@@ -133,6 +139,13 @@ key that a secret store flattened onto one line. `githubUser` and
 An `MCPServer` or `Extension` without `harnessRefs` attaches to every provider
 in the namespace whose driver can program it. Name providers in `harnessRefs`
 to narrow that: a Workstation provider key or a Harness name.
+
+Provider keys are namespace-wide names, exactly like Harness names. A
+reference to `claude` matches the `claude` provider on every Workstation that
+declares one, and each of those Workstations' sidecars is then granted the
+Secrets that server or Extension references. Two Workstations that must not
+share a credential need distinct provider keys or an `attachmentPolicy` of
+`None` on the provider that should stay out.
 
 ```yaml
 apiVersion: t3code.janpuc.com/v1alpha1

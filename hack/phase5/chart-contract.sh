@@ -89,6 +89,8 @@ for required in \
   'resources: [events]' \
   'resources: [secrets]' \
   'provider-secrets' \
+  'inline-provider-secrets' \
+  'bearer-secrets' \
   'verbs: [get, watch]'; do
   rg -q --fixed-strings "$required" "$render_dir/operator-namespace-role.yaml" || {
     printf 'operator namespace Role lacks value: %s\n' "$required" >&2

@@ -27,7 +27,9 @@ metadata:
   name: nvme
   namespace: agents
 spec:
-  image: ghcr.io/janpuc/t3-code-operator@sha256:...
+  providers:
+    codex:
+      enabled: true
   storage:
     data:
       type: ExistingClaim
@@ -45,11 +47,6 @@ spec:
         retentionPolicy: Retain
   workspaceSharing:
     smb:
-      username: t3
-      shareName: workspace
-      passwordSecretRef:
-        name: nvme-workspace-smb
-        key: password
       resources:
         requests:
           cpu: 25m

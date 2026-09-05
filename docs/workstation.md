@@ -58,10 +58,20 @@ spec:
 | `attachmentPolicy` | `SameNamespace` | Whether Extensions and MCPServers in the namespace may attach. |
 
 Keys are lowercase DNS labels that start with a letter, so an Extension or
-MCPServer can reference them by name. A `Harness` object is still the way to
-share one provider definition across several Workstations or to use an
+MCPServer can reference them by name. They are namespace-wide names: the same
+key on two Workstations is one name to a `harnessRefs` entry, and both
+Workstations receive whatever attaches to it. A `Harness` object is still the
+way to share one provider definition across several Workstations or to use an
 instance ID that is not a DNS label; a Harness named after a built-in provider
-gets the same driver and display-name defaults.
+gets the same driver and display-name defaults. A Harness whose instance ID
+collides with an inline provider on a Workstation is skipped for that
+Workstation and reports `InstanceIDConflict` in its own status; the inline
+provider wins.
+
+An invalid Harness, MCPServer, or Extension never blocks a Workstation. The
+object reports `ValidationFailed` on itself and the Workstation renders without
+it. An inline provider is different: it is part of the Workstation, so a
+provider that cannot resolve fails that Workstation's resolution.
 
 Provider content is not pod shape. Adding, editing, or disabling a provider
 publishes a new rendered revision that the sidecar applies while the Pod keeps

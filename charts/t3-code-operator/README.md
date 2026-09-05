@@ -18,11 +18,18 @@ release; the operator passes it as `--default-workstation-image`, so a
 Workstation without `spec.image` runs that runtime. Override the digest to
 follow another track, or set `spec.image` on individual Workstations.
 
+Only the published OCI chart carries that digest. A chart installed from this
+git checkout ships `workstation.image.digest: ""`, so pass
+`--set workstation.image.digest=sha256:...` or set `spec.image` on every
+Workstation; otherwise the operator reports "Workstation image is required".
+`workstation.image` accepts no `tag`, because a Workstation image must be
+pinned by digest.
+
 The chart can also render Workstation, Harness, Extension, and MCPServer objects. Each list is empty by default.
 
-The chart grants the operator `get` and `watch` only for Secret names referenced by chart-managed resources. Kubernetes requires these permissions before the operator can create narrower sidecar Roles. The operator does not fetch Secret values.
+The chart grants the operator `get` and `watch` only for Secret names referenced by chart-managed resources: git credentials and signing keys, provider and Harness environment, Extension credentials, and MCPServer headers, environment, and bearer tokens. Kubernetes requires these permissions before the operator can create narrower sidecar Roles. The operator does not fetch Secret values.
 
-Add Secret names to `rbac.secretResourceNames` when `extraObjects` or separately managed custom resources reference them.
+Add Secret names to `rbac.secretResourceNames` when `extraObjects` or separately managed custom resources reference them. The SMB password Secret does not belong there: kubelet mounts it into the SMB sidecar, and neither the operator nor the runtime sidecar reads it.
 
 Use `extraObjects` for site resources such as HTTPRoutes, ServiceAccounts, Roles, RoleBindings, ExternalSecrets, and backup objects. Helm owns these objects. Their native controllers own their runtime behavior.
 
@@ -39,7 +46,7 @@ kubectl -n agents create secret generic t3-code-smb \
   --from-literal=password='replace-with-a-long-random-password'
 ```
 
-The operator creates `<workstation-name>-smb`. Set its type to `LoadBalancer` for direct access on port 445.
+The operator creates a Service also named `<workstation-name>-smb` for the share. Set `workspaceSharing.smb.service.type` to `LoadBalancer` for direct access on port 445.
 
 A `NodePort` Service usually needs an external port 445 mapping because desktop SMB clients expect the standard port.
 

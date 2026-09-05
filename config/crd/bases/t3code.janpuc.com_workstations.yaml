@@ -842,8 +842,9 @@ spec:
             type: object
             x-kubernetes-validations:
             - message: data EmptyDir requires disposable=true
-              rule: self.disposable || !has(self.storage) || !has(self.storage.data)
-                || !has(self.storage.data.type) || self.storage.data.type != 'EmptyDir'
+              rule: (has(self.disposable) && self.disposable) || !has(self.storage)
+                || !has(self.storage.data) || (!has(self.storage.data.emptyDir) &&
+                (!has(self.storage.data.type) || self.storage.data.type != 'EmptyDir'))
             - message: env contains a reserved runtime variable
               rule: '!has(self.env) || self.env.all(e, ![''HOME'', ''PATH'', ''T3CODE_HOME'',
                 ''XDG_CACHE_HOME'', ''XDG_CONFIG_HOME'', ''XDG_DATA_HOME'', ''GH_CONFIG_DIR'',
@@ -851,8 +852,9 @@ spec:
                 n == e.name))'
             - message: SMB workspace sharing requires a claim-backed workspace
               rule: '!has(self.workspaceSharing) || !has(self.workspaceSharing.smb)
-                || !has(self.storage) || !has(self.storage.workspace) || !has(self.storage.workspace.type)
-                || self.storage.workspace.type in [''ExistingClaim'', ''ClaimTemplate'']'
+                || !has(self.storage) || !has(self.storage.workspace) || (!has(self.storage.workspace.nfs)
+                && !has(self.storage.workspace.emptyDir) && (!has(self.storage.workspace.type)
+                || self.storage.workspace.type in [''ExistingClaim'', ''ClaimTemplate'']))'
             - message: SMB workspace and data must use different claims
               rule: '!has(self.workspaceSharing) || !has(self.workspaceSharing.smb)
                 || !has(self.storage) || !has(self.storage.data) || !has(self.storage.workspace)

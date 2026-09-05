@@ -77,6 +77,14 @@ app.kubernetes.io/component: operator
 {{- if $signing -}}
 {{- $names = append $names $signing -}}
 {{- end -}}
+{{- range $provider := (dig "spec" "providers" (dict) .) -}}
+{{- range (dig "environment" (list) $provider) -}}
+{{- $name := dig "valueFrom" "secretKeyRef" "name" "" . -}}
+{{- if $name -}}
+{{- $names = append $names $name -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- range .Values.harnesses -}}
 {{- range (dig "spec" "environment" (list) .) -}}
@@ -105,6 +113,10 @@ app.kubernetes.io/component: operator
 {{- end -}}
 {{- end -}}
 {{- range .Values.mcpServers -}}
+{{- $bearer := dig "spec" "bearerTokenSecretRef" "name" "" . -}}
+{{- if $bearer -}}
+{{- $names = append $names $bearer -}}
+{{- end -}}
 {{- range (dig "spec" "environment" (list) .) -}}
 {{- $name := dig "valueFrom" "secretKeyRef" "name" "" . -}}
 {{- if $name -}}

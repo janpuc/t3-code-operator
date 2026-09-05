@@ -116,7 +116,7 @@ func TestAssemblerResolvesAttachmentsPoliciesSecretsAndTools(t *testing.T) {
 	}
 }
 
-func TestAssemblerRejectsDuplicateProviderInstanceIDs(t *testing.T) {
+func TestAssemblerKeepsTheFirstHarnessForADuplicateInstanceID(t *testing.T) {
 	scheme := controllerTestScheme(t)
 	workstation := controllerTestWorkstation()
 	workstation.Spec.Tools = nil
@@ -132,9 +132,12 @@ func TestAssemblerRejectsDuplicateProviderInstanceIDs(t *testing.T) {
 		})
 	}
 	reader := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objects...).Build()
-	_, err := (&Assembler{Reader: reader}).Assemble(context.Background(), workstation)
-	if err == nil || !strings.Contains(err.Error(), "duplicates provider instance") {
-		t.Fatalf("expected duplicate instance rejection, got %v", err)
+	assembly, err := (&Assembler{Reader: reader}).Assemble(context.Background(), workstation)
+	if err != nil {
+		t.Fatalf("a duplicate Harness must be skipped, not fail the Workstation: %v", err)
+	}
+	if len(assembly.Manifest.ProviderInstances) != 1 || assembly.Manifest.ProviderInstances["same"].Driver != "codex" {
+		t.Fatalf("expected exactly one instance from the first Harness: %#v", assembly.Manifest.ProviderInstances)
 	}
 }
 
